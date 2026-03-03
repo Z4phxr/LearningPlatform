@@ -68,7 +68,9 @@ export async function createTask(data: z.infer<typeof taskFormSchema>) {
         order: validated.order,
         autoGrade: !!validated.autoGrade,
         isPublished: false,
-        ...(validated.tags && validated.tags.length > 0 ? { tags: validated.tags } : {}),
+        ...(validated.tags && validated.tags.length > 0
+          ? { tags: validated.tags.map(({ id, name, slug }) => ({ tagId: id, name, slug })) }
+          : {}),
       },
     })
 
@@ -124,6 +126,9 @@ export async function updateTask(id: string, data: Partial<z.infer<typeof taskFo
   if (validated.choices) {
     updateData.choices = validated.choices.map(text => ({ text }))
   }
+  if (validated.tags) {
+    updateData.tags = validated.tags.map(({ id, name, slug }) => ({ tagId: id, name, slug }))
+  }
 
   // Convert media IDs to strings for database column type
   if (validated.questionMedia !== undefined) {
@@ -149,6 +154,7 @@ export async function updateTask(id: string, data: Partial<z.infer<typeof taskFo
   })
 
   revalidatePath('/admin/lessons')
+  revalidatePath('/admin/tasks')
   return task
 }
 

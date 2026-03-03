@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { requireAdmin } from '@/lib/auth-helpers'
-import { unstable_cache } from 'next/cache'
+import { unstable_cache, revalidateTag } from 'next/cache'
 import { z } from 'zod'
 import { logActivity, ActivityAction } from '@/lib/activity-log'
 
@@ -15,7 +15,7 @@ const getCachedFlashcards = (tagSlugsKey: string | null, whereClause: any) =>
         include: { tags: { select: { id: true, name: true, slug: true } } },
       }),
     [`api-flashcards-${tagSlugsKey ?? 'all'}`],
-    { revalidate: 30 },
+    { revalidate: 30, tags: ['api-flashcards'] },
   )()
 
 // ─── Validation schema ────────────────────────────────────────────────────────
@@ -105,6 +105,8 @@ export async function POST(req: Request) {
       resourceType: 'flashcard',
       resourceId:   flashcard.id,
     })
+
+    try { revalidateTag('api-flashcards') } catch (_) { /* best-effort */ }
 
     return NextResponse.json({ flashcard }, { status: 201 })
   } catch (error) {

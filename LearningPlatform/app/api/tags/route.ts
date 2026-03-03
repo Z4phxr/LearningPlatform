@@ -9,6 +9,7 @@ const getCachedTags = unstable_cache(
   async () => {
     // Fetch prisma tag rows (includes flashcard counts) and also compute
     // how many tasks reference each tag via the Payload join table
+    // (tags option ensures revalidateTag('api-tags-list') busts this cache)
     const tags = await prisma.tag.findMany({
       orderBy: { name: 'asc' },
       select: {
@@ -42,7 +43,7 @@ const getCachedTags = unstable_cache(
     }))
   },
   ['api-tags-list'],
-  { revalidate: 30 },
+  { revalidate: 30, tags: ['api-tags-list'] },
 )
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -113,6 +114,8 @@ export async function POST(req: Request) {
     const tag = await prisma.tag.create({
       data: { name, slug },
     })
+
+    try { revalidateTag('api-tags-list') } catch (_) { /* best-effort */ }
 
     logActivity({
       action:       ActivityAction.TAG_CREATED,

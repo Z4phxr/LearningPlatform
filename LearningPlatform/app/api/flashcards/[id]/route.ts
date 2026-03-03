@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { requireAdmin } from '@/lib/auth-helpers'
+import { revalidateTag } from 'next/cache'
 import { z } from 'zod'
 import { logActivity, ActivityAction } from '@/lib/activity-log'
 
@@ -80,6 +81,8 @@ export async function PUT(req: Request, ctx: RouteContext) {
       resourceId:   id,
     })
 
+    try { revalidateTag('api-flashcards') } catch (_) { /* best-effort */ }
+
     return NextResponse.json({ flashcard })
   } catch (error) {
     if (error instanceof Error && (error.message === 'Unauthorized' || error.message === 'Forbidden')) {
@@ -106,6 +109,8 @@ export async function DELETE(_req: Request, ctx: RouteContext) {
       resourceType: 'flashcard',
       resourceId:   id,
     })
+
+    try { revalidateTag('api-flashcards') } catch (_) { /* best-effort */ }
 
     return NextResponse.json({ success: true })
   } catch (error) {

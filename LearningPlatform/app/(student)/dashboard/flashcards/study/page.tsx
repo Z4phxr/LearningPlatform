@@ -219,7 +219,7 @@ function StudyPage() {
       fetch('/api/media/list')
         .then((r) => r.json())
         .then((d) => {
-          const docs: { id: string | number; url: string }[] = d?.docs ?? []
+          const docs: { id: string | number; url: string }[] = d?.media ?? []
           if (card.questionImageId) {
             const m = docs.find((x) => String(x.id) === card.questionImageId)
             if (m) setQuestionImgUrl(m.url)
@@ -344,14 +344,14 @@ function StudyPage() {
             <ArrowLeft className="h-4 w-4" />
             {subject ? subject : (tagSlug ? tagSlug : 'Flashcards')}
           </Link>
-          <span className="text-gray-300 dark:text-gray-700">Â·</span>
+          <span className="text-gray-300 dark:text-gray-700">&middot;</span>
           <span className={cn(
             'rounded px-2 py-0.5 text-xs font-semibold uppercase tracking-wide',
             mode === 'free'
               ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300'
               : 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',
           )}>
-            {mode === 'free' ? 'âšˇ Free Learn' : 'đź“… SRS Mode'}
+            {mode === 'free' ? 'Free Learn' : 'SRS Mode'}
           </span>
         </div>
 
@@ -381,7 +381,7 @@ function StudyPage() {
         {phase === 'loading' && (
           <div className="flex flex-col items-center gap-4 text-gray-500">
             <Loader2 className="h-8 w-8 animate-spin" />
-            <p className="text-sm">Preparing your study sessionâ€¦</p>
+            <p className="text-sm">Preparing your study session...</p>
           </div>
         )}
 
@@ -406,7 +406,7 @@ function StudyPage() {
             </p>
             <div className="flex gap-3">
               <Link href={backHref} className="mt-2">
-                <Button variant="outline">â† Back</Button>
+                <Button variant="outline"><ArrowLeft className="mr-1 h-4 w-4 inline" /> Back</Button>
               </Link>
               {mode === 'srs' && (
                 <Link href={`/dashboard/flashcards/study?mode=free${tagSlug ? `&tagSlug=${tagSlug}` : ''}`} className="mt-2">
@@ -439,7 +439,7 @@ function StudyPage() {
                 Start Again
               </button>
               <Link href={backHref} className="mt-2">
-                <Button>â† Back to Flashcards</Button>
+                <Button><ArrowLeft className="mr-1 h-4 w-4 inline" /> Back to Flashcards</Button>
               </Link>
             </div>
           </div>
@@ -538,7 +538,7 @@ function StudyPage() {
               {/* "Click to reveal" hint */}
               {phase === 'question' && (
                 <div className="absolute bottom-3 right-4 text-xs text-gray-300 group-hover:text-gray-400 dark:text-gray-700 dark:group-hover:text-gray-600">
-                  Space / click to reveal â†“
+                  Space / click to reveal &#x2193;
                 </div>
               )}
             </button>

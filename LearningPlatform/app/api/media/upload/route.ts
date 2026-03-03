@@ -81,7 +81,7 @@ export async function POST(request: NextRequest) {
     // If S3 is configured (best option for production), upload directly and avoid
     // relying on the container filesystem. Otherwise, write to `public/media`
     // so Next can serve the file immediately in local/dev.
-    const s3BucketConfigured = Boolean(process.env.S3_BUCKET || process.env.AWS_S3_BUCKET || process.env.RAILWAY_BUCKET_NAME)
+    const s3BucketConfigured = Boolean(process.env.S3_BUCKET || process.env.AWS_S3_BUCKET || process.env.AWS_S3_BUCKET_NAME || process.env.RAILWAY_BUCKET_NAME)
 
     let finalName = safeName
     let remoteKey: string | null = null

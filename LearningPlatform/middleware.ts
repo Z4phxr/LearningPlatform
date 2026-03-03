@@ -24,9 +24,10 @@ function buildCsp(nonce: string): string {
     // Restrict image origins to known storage providers.
     // Use 'https:' only during development or when a custom S3 endpoint is
     // configured that does not match the patterns below.
-    "img-src 'self' data: blob: https://t3.storageapi.dev https://*.amazonaws.com https://*.r2.dev",
+    "img-src 'self' data: blob: https://t3.storageapi.dev https://*.amazonaws.com https://*.r2.dev https://img.youtube.com https://i.ytimg.com",
     "font-src 'self' data:",
     "connect-src 'self'",
+    "frame-src 'self' https://www.youtube.com https://www.youtube-nocookie.com https://player.vimeo.com",
     "frame-ancestors 'none'",
     "base-uri 'self'",
     "form-action 'self'",

@@ -153,6 +153,8 @@ export function AddTaskDialog({ open, onClose, lessonId = '', nextOrder = 1, ini
       setSolutionText('')
       setCorrectAnswerText('')
       setPointsValue(1)
+      setSelectedTagIds([])
+      setAutoGrade(false)
     }
   }, [initialTask, open])
 
