@@ -30,6 +30,8 @@ RUN npm ci --no-audit --no-fund --ignore-scripts
 
 # Copy rest of source and run build
 COPY . .
+# Ensure public/ exists even when the directory is empty (git skips empty dirs)
+RUN mkdir -p /app/public
 
 # Build-time configuration for Payload CMS / Prisma initialization.
 # DATABASE_URL and PAYLOAD_DATABASE_URL are non-sensitive placeholders so

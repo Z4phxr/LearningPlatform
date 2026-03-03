@@ -46,11 +46,7 @@ docs/
 # misc
 *.pem
 
-
-public
 data
-<<<<<<< HEAD
-scripts
-=======
-scripts
->>>>>>> c2cedee8f434e35aceed763776f26c2b71e88d7c
+
+# uploaded/generated media (not committed)
+public/media
