@@ -1,15 +1,47 @@
 import { NextResponse } from 'next/server'
+import { getPayload } from 'payload'
+import config from '@payload-config'
 import { prisma } from '@/lib/prisma'
 import { requireAdmin } from '@/lib/auth-helpers'
 import { unstable_cache, revalidateTag } from 'next/cache'
 import { z } from 'zod'
 import { logActivity, ActivityAction } from '@/lib/activity-log'
 
+const OA = { overrideAccess: true as const }
+
+/** Count Prisma tag ids by scanning task documents (no raw SQL to payload.*). */
+async function taskCountsByTagId(): Promise<Map<string, number>> {
+  const payload = await getPayload({ config })
+  const counts = new Map<string, number>()
+  let page = 1
+  const limit = 200
+  for (;;) {
+    const { docs, hasNextPage } = await payload.find({
+      collection: 'tasks',
+      limit,
+      page,
+      depth: 0,
+      ...OA,
+    })
+    for (const task of docs) {
+      const rows = Array.isArray((task as { tags?: unknown }).tags)
+        ? ((task as { tags: { tagId?: string }[] }).tags ?? [])
+        : []
+      for (const row of rows) {
+        const tid = row?.tagId
+        if (typeof tid === 'string' && tid.length > 0) {
+          counts.set(tid, (counts.get(tid) ?? 0) + 1)
+        }
+      }
+    }
+    if (!hasNextPage) break
+    page += 1
+  }
+  return counts
+}
+
 const getCachedTags = unstable_cache(
   async () => {
-    // Fetch prisma tag rows (includes flashcard counts) and also compute
-    // how many tasks reference each tag via the Payload join table
-    // (tags option ensures revalidateTag('api-tags-list') busts this cache)
     const tags = await prisma.tag.findMany({
       orderBy: { name: 'asc' },
       select: {
@@ -21,22 +53,8 @@ const getCachedTags = unstable_cache(
       },
     })
 
-    // Query payload.tasks_tags to count usages per tagId.
-    // Since we now store tagId in the join table, we can directly count
-    // how many tasks reference each canonical Prisma Tag.
-    const taskCounts: Array<{ tag_id: string; cnt: string }> = await prisma.$queryRaw`
-      SELECT tag_id, COUNT(*)::text as cnt 
-      FROM payload.tasks_tags 
-      WHERE tag_id IS NOT NULL
-      GROUP BY tag_id
-    ` as any
+    const countsMap = await taskCountsByTagId()
 
-    const countsMap = new Map<string, number>()
-    for (const r of taskCounts) {
-      if (r.tag_id) countsMap.set(String(r.tag_id), Number(r.cnt))
-    }
-
-    // Merge task counts into each tag object under _count.tasks
     return tags.map((t) => ({
       ...t,
       _count: { ...(t._count || {}), tasks: countsMap.get(t.id) || 0 },
@@ -53,10 +71,10 @@ function slugify(text: string): string {
     .toString()
     .trim()
     .toLowerCase()
-    .replace(/[^\w\s-]/g, '')   // remove non-word chars except hyphens
-    .replace(/\s+/g, '-')       // spaces → hyphens
-    .replace(/-+/g, '-')        // collapse consecutive hyphens
-    .replace(/^-+|-+$/g, '')    // trim leading/trailing hyphens
+    .replace(/[^\w\s-]/g, '')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-+|-+$/g, '')
 }
 
 // ─── Validation schemas ───────────────────────────────────────────────────────
@@ -118,12 +136,12 @@ export async function POST(req: Request) {
     try { revalidateTag('api-tags-list') } catch (_) { /* best-effort */ }
 
     logActivity({
-      action:       ActivityAction.TAG_CREATED,
-      actorUserId:  admin.id,
-      actorEmail:   admin.email,
+      action: ActivityAction.TAG_CREATED,
+      actorUserId: admin.id,
+      actorEmail: admin.email,
       resourceType: 'tag',
-      resourceId:   tag.id,
-      metadata:     { name: tag.name, slug: tag.slug },
+      resourceId: tag.id,
+      metadata: { name: tag.name, slug: tag.slug },
     })
 
     return NextResponse.json({ tag }, { status: 201 })
