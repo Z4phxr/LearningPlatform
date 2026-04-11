@@ -31,9 +31,7 @@ function slugify(text: string): string {
 async function syncTagOnTasks(tagId: string, name: string, slug: string) {
   const payload = await getPayload({ config })
   const limit = 80
-  // Read all matching task IDs first (page++ safe — no mutations). Updates keep tagId in the
-  // filter, so a single "page 1 until empty" loop would never drain.
-  const taskIds: string[] = []
+  // Paginate by page++: each task is updated in place, so page-1-only would not drain the set.
   let readPage = 1
   for (;;) {
     const { docs, hasNextPage } = await payload.find({
@@ -58,24 +56,6 @@ async function syncTagOnTasks(tagId: string, name: string, slug: string) {
     }
     if (!hasNextPage) break
     readPage += 1
-  }
-  for (const id of taskIds) {
-    const task = await payload.findByID({
-      collection: 'tasks',
-      id,
-      depth: 0,
-      ...OA,
-    })
-    const tags = [...readTaskTags(task)]
-    const next = tags.map((t) =>
-      t?.tagId === tagId ? { ...t, name, slug } : t,
-    )
-    await payload.update({
-      collection: 'tasks',
-      id,
-      data: { tags: next },
-      ...OA,
-    })
   }
 }
 

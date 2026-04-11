@@ -6,38 +6,6 @@ import { unstable_cache, revalidateTag } from 'next/cache'
 import { z } from 'zod'
 import { logActivity, ActivityAction } from '@/lib/activity-log'
 
-const OA = { overrideAccess: true as const }
-
-/** Count Prisma tag ids by scanning task documents (no raw SQL to payload.*). */
-async function taskCountsByTagId(): Promise<Map<string, number>> {
-  const payload = await getPayload({ config })
-  const counts = new Map<string, number>()
-  let page = 1
-  const limit = 200
-  for (;;) {
-    const { docs, hasNextPage } = await payload.find({
-      collection: 'tasks',
-      limit,
-      page,
-      depth: 0,
-      ...OA,
-    })
-    for (const task of docs) {
-      const raw = (task as { tags?: unknown }).tags
-      if (!Array.isArray(raw)) continue
-      for (const row of raw as { tagId?: string }[]) {
-        const tid = row?.tagId
-        if (typeof tid === 'string' && tid.length > 0) {
-          counts.set(tid, (counts.get(tid) ?? 0) + 1)
-        }
-      }
-    }
-    if (!hasNextPage) break
-    page += 1
-  }
-  return counts
-}
-
 const getCachedTags = unstable_cache(
   async () => {
     const tags = await prisma.tag.findMany({
