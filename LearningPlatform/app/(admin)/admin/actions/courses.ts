@@ -121,6 +121,125 @@ export async function toggleCoursePublish(id: string, isPublished: boolean) {
   return course
 }
 
+/**
+ * Publish the course and every module, lesson, and task belonging to it (full tree).
+ * Idempotent: already-published items are left as-is.
+ */
+export async function publishCourseTree(courseId: string) {
+  const admin = await requireAdmin()
+  const payload = await getPayload({ config })
+
+  const course = await payload.findByID({
+    collection: 'courses',
+    id: String(courseId),
+  })
+  if (!course) {
+    throw new Error('Course not found')
+  }
+
+  const { docs: modules } = await payload.find({
+    collection: 'modules',
+    where: { course: { equals: String(courseId) } },
+    limit: 500,
+  })
+
+  const { docs: lessons } = await payload.find({
+    collection: 'lessons',
+    where: { course: { equals: String(courseId) } },
+    limit: 5000,
+  })
+
+  const lessonIds = lessons.map((l) => String(l.id))
+
+  let tasks: { id: string | number; isPublished?: boolean }[] = []
+  if (lessonIds.length > 0) {
+    const taskResult = await payload.find({
+      collection: 'tasks',
+      where: { lesson: { in: lessonIds } },
+      limit: 10000,
+    })
+    tasks = taskResult.docs
+  }
+
+  let modulesUpdated = 0
+  for (const m of modules) {
+    if (!m.isPublished) {
+      await payload.update({
+        collection: 'modules',
+        id: String(m.id),
+        data: { isPublished: true },
+      })
+      modulesUpdated += 1
+    }
+  }
+
+  let lessonsUpdated = 0
+  for (const l of lessons) {
+    if (!l.isPublished) {
+      await payload.update({
+        collection: 'lessons',
+        id: String(l.id),
+        data: { isPublished: true },
+      })
+      lessonsUpdated += 1
+    }
+  }
+
+  let tasksUpdated = 0
+  for (const t of tasks) {
+    if (!t.isPublished) {
+      await payload.update({
+        collection: 'tasks',
+        id: String(t.id),
+        data: { isPublished: true },
+      })
+      tasksUpdated += 1
+    }
+  }
+
+  if (!course.isPublished) {
+    await payload.update({
+      collection: 'courses',
+      id: String(courseId),
+      data: { isPublished: true },
+    })
+  }
+
+  logActivity({
+    action: ActivityAction.COURSE_TREE_PUBLISHED,
+    actorUserId: admin.id,
+    actorEmail: admin.email,
+    resourceType: 'course',
+    resourceId: String(courseId),
+    metadata: {
+      title: course.title,
+      modules: modules.length,
+      lessons: lessons.length,
+      tasks: tasks.length,
+      tasksUpdated,
+      lessonsUpdated,
+      modulesUpdated,
+    },
+  })
+
+  revalidatePath('/admin/dashboard')
+  revalidatePath('/admin/lessons')
+  revalidatePath(`/admin/courses/${courseId}/edit`)
+  revalidatePath('/courses')
+  if (typeof course.slug === 'string' && course.slug) {
+    revalidatePath(`/courses/${course.slug}`)
+  }
+
+  return {
+    modules: modules.length,
+    lessons: lessons.length,
+    tasks: tasks.length,
+    modulesUpdated,
+    lessonsUpdated,
+    tasksUpdated,
+  }
+}
+
 export async function deleteCourse(id: string) {
   const admin = await requireAdmin()
   const payload = await getPayload({ config })

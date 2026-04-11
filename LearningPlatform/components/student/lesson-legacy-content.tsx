@@ -1,10 +1,13 @@
 'use client'
 
-import { cn } from '@/lib/utils'
-import { lessonTheorySizeClasses, useLessonTheoryTextSize } from '@/lib/lesson-theory-text-size'
+import { LexicalRichText } from '@/components/student/lexical-rich-text'
+import { useLessonTheoryTextSize } from '@/lib/lesson-theory-text-size'
 
-export function LessonLegacyContent({ content }: { content: string }) {
+/** Legacy `lessons.content` is Lexical rich text (object) or occasionally a plain string (rendered as Markdown). */
+export function LessonLegacyContent({ content }: { content: unknown }) {
   const tier = useLessonTheoryTextSize()
-  const sc = lessonTheorySizeClasses(tier)
-  return <p className={cn('whitespace-pre-wrap', sc.body)}>{content}</p>
+
+  if (content == null) return null
+
+  return <LexicalRichText content={content} tier={tier} className="min-w-0" />
 }

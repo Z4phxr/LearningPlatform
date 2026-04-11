@@ -24,10 +24,9 @@ async function taskCountsByTagId(): Promise<Map<string, number>> {
       ...OA,
     })
     for (const task of docs) {
-      const rows = Array.isArray((task as { tags?: unknown }).tags)
-        ? ((task as { tags: { tagId?: string }[] }).tags ?? [])
-        : []
-      for (const row of rows) {
+      const raw = (task as { tags?: unknown }).tags
+      if (!Array.isArray(raw)) continue
+      for (const row of raw as { tagId?: string }[]) {
         const tid = row?.tagId
         if (typeof tid === 'string' && tid.length > 0) {
           counts.set(tid, (counts.get(tid) ?? 0) + 1)

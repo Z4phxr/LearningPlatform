@@ -4,10 +4,9 @@ import { useEffect, useState } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
 import {
-  LESSON_THEORY_TEXT_SIZE_KEY,
   LESSON_THEORY_TEXT_SIZE_OPTIONS,
-  parseLessonTheoryTextSize,
   persistLessonTheoryTextSize,
+  readLessonTheoryTextSizeFromStorage,
   type LessonTheoryTextSize,
 } from '@/lib/lesson-theory-text-size'
 
@@ -15,7 +14,7 @@ export function LessonReadingSizeSettings() {
   const [value, setValue] = useState<LessonTheoryTextSize>('comfortable')
 
   useEffect(() => {
-    setValue(parseLessonTheoryTextSize(localStorage.getItem(LESSON_THEORY_TEXT_SIZE_KEY)))
+    setValue(readLessonTheoryTextSizeFromStorage())
   }, [])
 
   function select(next: LessonTheoryTextSize) {
@@ -28,7 +27,7 @@ export function LessonReadingSizeSettings() {
       <CardHeader>
         <CardTitle>Lesson reading</CardTitle>
         <CardDescription>
-          Text size for theory blocks when you study a lesson. Saved in this browser only.
+          Text size for lesson theory (including Markdown in text blocks). Saved in this browser only.
         </CardDescription>
       </CardHeader>
       <CardContent>

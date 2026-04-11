@@ -7,7 +7,14 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { ArrowLeft, Plus, Save, Trash2 } from 'lucide-react'
 import Link from 'next/link'
-import { updateCourse, createCourse, createModule, toggleCoursePublish, deleteCourse } from '@/app/(admin)/admin/actions'
+import {
+  updateCourse,
+  createCourse,
+  createModule,
+  toggleCoursePublish,
+  publishCourseTree,
+  deleteCourse,
+} from '@/app/(admin)/admin/actions'
 import { useRouter } from 'next/navigation'
 import { ModulesList } from './modules-list'
 import { FormError, FieldError } from '@/components/ui/form-error'
@@ -271,11 +278,12 @@ export function CourseEditor({ course, modules }: { course: Course; modules: Mod
               </select>
               {courseFieldErrors.level && <FieldError message={courseFieldErrors.level} />}
             </div>
-            <div className="flex gap-3 pt-2">
-              <Button 
-                type="button" 
-                variant={course.isPublished ? "outline" : "default"}
-                className="flex-1"
+            <div className="flex flex-col gap-2 pt-2 sm:flex-row sm:gap-3">
+              <Button
+                type="button"
+                variant={course.isPublished ? 'outline' : 'default'}
+                className="min-h-10 flex-1"
+                disabled={loading || course.id === 'new'}
                 onClick={async () => {
                   setLoading(true)
                   try {
@@ -290,7 +298,36 @@ export function CourseEditor({ course, modules }: { course: Course; modules: Mod
               >
                 {course.isPublished ? 'Unpublish' : 'Publish'}
               </Button>
-              <Button type="submit" disabled={loading} className="flex-1">
+              {course.id !== 'new' ? (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="min-h-10 flex-1"
+                  disabled={loading}
+                  title="Publish this course and every module, lesson, and task under it"
+                  onClick={async () => {
+                    if (
+                      !confirm(
+                        'Publish this course and every module, lesson, and task in it? Students will see the full tree.',
+                      )
+                    ) {
+                      return
+                    }
+                    setLoading(true)
+                    try {
+                      await publishCourseTree(course.id)
+                      router.refresh()
+                    } catch {
+                      alert('Failed to publish the full course tree')
+                    } finally {
+                      setLoading(false)
+                    }
+                  }}
+                >
+                  Publish all
+                </Button>
+              ) : null}
+              <Button type="submit" disabled={loading} className="min-h-10 flex-1">
                 <Save className="mr-2 h-4 w-4" />
                 Save changes
               </Button>

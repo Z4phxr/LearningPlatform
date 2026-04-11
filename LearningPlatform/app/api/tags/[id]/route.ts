@@ -9,6 +9,14 @@ import { logActivity, ActivityAction } from '@/lib/activity-log'
 
 const OA = { overrideAccess: true as const }
 
+type TaskTagRow = { tagId?: string; name?: string; slug?: string }
+
+function cloneTaskTags(task: unknown): TaskTagRow[] {
+  const raw = (task as { tags?: unknown }).tags
+  if (!Array.isArray(raw)) return []
+  return [...raw] as TaskTagRow[]
+}
+
 function slugify(text: string): string {
   return text
     .toString()
@@ -34,13 +42,7 @@ async function syncTagOnTasks(tagId: string, name: string, slug: string) {
       ...OA,
     })
     for (const task of docs) {
-      const tags = Array.isArray((task as { tags?: unknown }).tags)
-        ? ([...(task as { tags: { tagId?: string; name?: string; slug?: string }[] }).tags] as {
-            tagId?: string
-            name?: string
-            slug?: string
-          }[])
-        : []
+      const tags = cloneTaskTags(task)
       const next = tags.map((t) =>
         t?.tagId === tagId ? { ...t, name, slug } : t,
       )
@@ -71,9 +73,7 @@ async function removeTagFromTasks(tagId: string): Promise<number> {
       ...OA,
     })
     for (const task of docs) {
-      const tags = Array.isArray((task as { tags?: unknown }).tags)
-        ? ([...(task as { tags: { tagId?: string }[] }).tags] as { tagId?: string }[])
-        : []
+      const tags = cloneTaskTags(task)
       const next = tags.filter((t) => t?.tagId !== tagId)
       removed += tags.length - next.length
       await payload.update({

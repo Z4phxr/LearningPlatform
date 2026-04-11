@@ -23,7 +23,7 @@ export default async function StudentLayout({
       {!isFullscreen && <Navbar />}
       <main
         className={cn(
-          'min-h-screen bg-background',
+          'min-h-screen bg-background text-base leading-relaxed',
           isFullscreen && 'min-w-0 overflow-x-hidden',
         )}
       >
