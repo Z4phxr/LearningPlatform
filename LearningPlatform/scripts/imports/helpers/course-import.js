@@ -160,8 +160,9 @@ async function ensureMediaFromImportAsset(payload, filename) {
 
 /**
  * Course `coverImage` in import JS:
- * - omit or `__IMPORT_PLACEHOLDER_IMAGE__` → bundled lesson-theory-placeholder.svg (same as theory blocks)
- * - `null` → no cover
+ * - omit / undefined → do not change cover on import (no automatic placeholder)
+ * - `null` → clear cover
+ * - `__IMPORT_PLACEHOLDER_IMAGE__` / `__PLACEHOLDER__` → bundled lesson-theory-placeholder.svg (explicit only)
  * - `"my-cover.jpg"` → file in scripts/imports/assets/
  * - numeric id → existing Media row
  */
@@ -172,7 +173,10 @@ async function resolveCourseCoverForImport(payload, raw, { dryRun }) {
   if (raw === null) {
     return null
   }
-  if (raw === undefined || raw === IMPORT_PLACEHOLDER_IMAGE_TOKEN || raw === '__PLACEHOLDER__') {
+  if (raw === undefined) {
+    return undefined
+  }
+  if (raw === IMPORT_PLACEHOLDER_IMAGE_TOKEN || raw === '__PLACEHOLDER__') {
     const doc = await ensureLessonPlaceholderMedia(payload)
     return doc.id
   }

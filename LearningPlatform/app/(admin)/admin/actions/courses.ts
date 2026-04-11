@@ -42,6 +42,7 @@ export async function getCourseById(id: string) {
   const course = await payload.findByID({
     collection: 'courses',
     id,
+    depth: 1,
   })
 
   return course
@@ -52,10 +53,15 @@ export async function createCourse(data: z.infer<typeof courseFormSchema>) {
   const validated = courseFormSchema.parse(data)
   const payload = await getPayload({ config })
 
+  const { coverImage, ...rest } = validated
+  const cover =
+    typeof coverImage === 'string' && coverImage.length > 0 ? { coverImage } : {}
+
   const course = await payload.create({
     collection: 'courses',
     data: {
-      ...validated,
+      ...rest,
+      ...cover,
       // Store subject as string id (payload uses varchar/uuid ids)
       subject: validated.subject ? String(validated.subject) : undefined,
       isPublished: false,
@@ -75,14 +81,22 @@ export async function createCourse(data: z.infer<typeof courseFormSchema>) {
   return course
 }
 
-export async function updateCourse(id: string, data: Partial<z.infer<typeof courseFormSchema>>) {
+export async function updateCourse(
+  id: string,
+  data: Partial<z.infer<typeof courseFormSchema>> & { coverImage?: string | null },
+) {
   const admin = await requireAdmin()
   const payload = await getPayload({ config })
+
+  const payloadData: Record<string, unknown> = { ...data }
+  if (data.coverImage === '') {
+    payloadData.coverImage = null
+  }
 
   const course = await payload.update({
     collection: 'courses',
     id,
-    data,
+    data: payloadData,
   })
 
   logActivity({

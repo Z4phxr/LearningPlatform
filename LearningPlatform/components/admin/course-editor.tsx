@@ -1,11 +1,12 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import Image from 'next/image'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { ArrowLeft, Plus, Save, Trash2 } from 'lucide-react'
+import { ArrowLeft, Image as ImageIcon, Plus, Save, Trash2 } from 'lucide-react'
 import Link from 'next/link'
 import {
   updateCourse,
@@ -17,6 +18,7 @@ import {
 } from '@/app/(admin)/admin/actions'
 import { useRouter } from 'next/navigation'
 import { ModulesList } from './modules-list'
+import { MediaPicker } from './media-picker'
 import { FormError, FieldError } from '@/components/ui/form-error'
 import { ZodError } from 'zod'
 
@@ -29,6 +31,22 @@ interface Course {
   level: string
   isPublished: boolean
   topics?: string[]
+  coverImage?: { id: string | number; filename: string; alt?: string | null } | string | number | null
+}
+
+function coverIdFromCourse(c: Course): string {
+  const ci = c.coverImage
+  if (ci == null || ci === '') return ''
+  if (typeof ci === 'object' && ci !== null && 'id' in ci) return String(ci.id)
+  return String(ci)
+}
+
+function coverFilenameFromCourse(c: Course): string | null {
+  const ci = c.coverImage
+  if (ci && typeof ci === 'object' && 'filename' in ci && typeof (ci as { filename: string }).filename === 'string') {
+    return (ci as { filename: string }).filename
+  }
+  return null
 }
 
 interface Module {
@@ -56,6 +74,19 @@ export function CourseEditor({ course, modules }: { course: Course; modules: Mod
   const [courseFieldErrors, setCourseFieldErrors] = useState<Record<string, string>>({})
   const [moduleError, setModuleError] = useState<string>('')
   const [moduleFieldErrors, setModuleFieldErrors] = useState<Record<string, string>>({})
+  const [coverMediaId, setCoverMediaId] = useState(() => coverIdFromCourse(course))
+  const [coverFilename, setCoverFilename] = useState<string | null>(() => coverFilenameFromCourse(course))
+  const [showCoverPicker, setShowCoverPicker] = useState(false)
+
+  const coverSig =
+    course.coverImage && typeof course.coverImage === 'object'
+      ? `${(course.coverImage as { id: string | number }).id}:${(course.coverImage as { filename?: string }).filename ?? ''}`
+      : String(course.coverImage ?? '')
+
+  useEffect(() => {
+    setCoverMediaId(coverIdFromCourse(course))
+    setCoverFilename(coverFilenameFromCourse(course))
+  }, [course.id, coverSig])
 
   useEffect(() => {
     let isMounted = true
@@ -108,6 +139,7 @@ export function CourseEditor({ course, modules }: { course: Course; modules: Mod
           ...data,
           slug: slugFromTitle,
           level: data.level || 'BEGINNER',
+          ...(coverMediaId ? { coverImage: coverMediaId } : {}),
         }
 
         const created = await createCourse(createPayload)
@@ -120,7 +152,10 @@ export function CourseEditor({ course, modules }: { course: Course; modules: Mod
         // If no id returned, show fallback
         setCourseError('Course created but no id returned')
       } else {
-        await updateCourse(course.id, data)
+        await updateCourse(course.id, {
+          ...data,
+          coverImage: coverMediaId || null,
+        })
         alert('Course updated!')
         router.refresh()
       }
@@ -278,10 +313,54 @@ export function CourseEditor({ course, modules }: { course: Course; modules: Mod
               </select>
               {courseFieldErrors.level && <FieldError message={courseFieldErrors.level} />}
             </div>
+
+            <div>
+              <Label className="text-base font-medium">Course cover image</Label>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Shown on the student dashboard and course page. Optional.
+              </p>
+              <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-start">
+                <div className="relative h-36 w-full max-w-md overflow-hidden rounded-lg border border-border bg-muted/30 dark:bg-muted/20">
+                  {coverMediaId && coverFilename ? (
+                    <Image
+                      src={`/api/media/serve/${encodeURIComponent(coverFilename)}`}
+                      alt=""
+                      fill
+                      unoptimized
+                      className="object-cover"
+                    />
+                  ) : (
+                    <div className="flex h-full items-center justify-center gap-2 text-muted-foreground">
+                      <ImageIcon className="h-8 w-8 opacity-50" />
+                      <span className="text-sm">No cover selected</span>
+                    </div>
+                  )}
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button type="button" variant="default" onClick={() => setShowCoverPicker(true)} disabled={loading}>
+                    {coverMediaId ? 'Change image' : 'Choose image'}
+                  </Button>
+                  {coverMediaId ? (
+                    <Button
+                      type="button"
+                      variant="default"
+                      disabled={loading}
+                      onClick={() => {
+                        setCoverMediaId('')
+                        setCoverFilename(null)
+                      }}
+                    >
+                      Remove cover
+                    </Button>
+                  ) : null}
+                </div>
+              </div>
+            </div>
+
             <div className="flex flex-col gap-2 pt-2 sm:flex-row sm:gap-3">
               <Button
                 type="button"
-                variant={course.isPublished ? 'outline' : 'default'}
+                variant="default"
                 className="min-h-10 flex-1"
                 disabled={loading || course.id === 'new'}
                 onClick={async () => {
@@ -301,7 +380,7 @@ export function CourseEditor({ course, modules }: { course: Course; modules: Mod
               {course.id !== 'new' ? (
                 <Button
                   type="button"
-                  variant="secondary"
+                  variant="default"
                   className="min-h-10 flex-1"
                   disabled={loading}
                   title="Publish this course and every module, lesson, and task under it"
@@ -327,7 +406,7 @@ export function CourseEditor({ course, modules }: { course: Course; modules: Mod
                   Publish all
                 </Button>
               ) : null}
-              <Button type="submit" disabled={loading} className="min-h-10 flex-1">
+              <Button type="submit" disabled={loading} variant="default" className="min-h-10 flex-1">
                 <Save className="mr-2 h-4 w-4" />
                 Save changes
               </Button>
@@ -385,6 +464,18 @@ export function CourseEditor({ course, modules }: { course: Course; modules: Mod
           <ModulesList modules={modules} courseId={course.id} />
         </CardContent>
       </Card>
+
+      <MediaPicker
+        open={showCoverPicker}
+        onClose={() => setShowCoverPicker(false)}
+        onSelect={(media) => {
+          setCoverMediaId(String(media.id))
+          setCoverFilename(media.filename ?? null)
+          setShowCoverPicker(false)
+        }}
+        currentMediaId={coverMediaId || null}
+        filter="image"
+      />
     </div>
   )
 }

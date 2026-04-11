@@ -36,13 +36,14 @@ module.exports = [
 
 **`data/courses/example.js`** — `theoryBlocks`: `text` / `callout` use string `content`; **`image`** uses Media id or `__IMPORT_PLACEHOLDER_IMAGE__` (resolved at import); **`video`** uses YouTube `videoUrl` + `aspectRatio`. Tasks need `type`, `order`, `prompt`, `tagSlugs`, etc. Details: [`AI_THEORY_BLOCKS.md`](./AI_THEORY_BLOCKS.md).
 
-**Course cover (`course.coverImage`)** — shown on the dashboard and course cards. The importer sets it automatically:
+**Course cover (`course.coverImage`)** — optional; shown on the student dashboard and course page. Imports **do not** set a cover unless you specify one:
 
-- **Omit** `coverImage` or set **`__IMPORT_PLACEHOLDER_IMAGE__`** → copies `scripts/imports/assets/lesson-theory-placeholder.svg` into `public/media` and links it (same file as theory placeholders).
-- **`null`** → no cover.
-- **`"your-file.png"`** → basename of a file you add under **`scripts/imports/assets/`** (e.g. `my-cover.jpg`). Supported: `.png`, `.jpg`, `.jpeg`, `.webp`, `.gif`, `.svg`.
+- **Omit** `coverImage` → leaves the course cover unchanged on re-import (no automatic placeholder).
+- **`null`** → clears the cover.
+- **`__IMPORT_PLACEHOLDER_IMAGE__`** → uses the bundled theory placeholder SVG (only if you set this explicitly).
+- **`"your-file.png"`** → basename of a file under **`scripts/imports/assets/`**. Supported: `.png`, `.jpg`, `.jpeg`, `.webp`, `.gif`, `.svg`.
 
-Re-run the course import after adding images so Media rows and disk copies stay in sync.
+For day-to-day cover images, use **Admin → Edit course** (cover picker) or upload via **Admin → Media**.
 
 ```javascript
 module.exports = {
