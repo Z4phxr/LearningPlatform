@@ -242,23 +242,26 @@ export function TaskCard({ task, index, lessonId, courseSlug, userProgress }: Ta
     setShowSolution(false)
   }
 
+  /** Match feedback banner tones: bg-green/red-50 + dark:bg-*-900/20 + readable text (not neon fills). */
   const getOptionClassName = (optionText: string) => {
-    if (!hasChecked) return 'border-gray-300 hover:bg-[var(--block-bg)] cursor-pointer'
-    
+    if (!hasChecked) {
+      return 'border-gray-300 hover:bg-[var(--block-bg)] cursor-pointer dark:border-gray-600'
+    }
+
     const isSelected = selectedAnswer === optionText
     const isCorrectOption = optionText === task.correctAnswer
-    
+
     if (isSelected && isCorrect) {
-      return 'border-green-500 bg-green-50 text-green-900'
+      return 'border-green-500 bg-green-50 text-green-900 dark:border-green-600 dark:bg-green-900/20 dark:text-green-100'
     }
     if (isSelected && !isCorrect) {
-      return 'border-red-500 bg-red-50 text-red-900'
+      return 'border-red-500 bg-red-50 text-red-900 dark:border-red-600 dark:bg-red-900/20 dark:text-red-100'
     }
     if (showSolution && isCorrectOption) {
-      return 'border-green-500 bg-green-50 text-green-900'
+      return 'border-green-500 bg-green-50 text-green-900 dark:border-green-600 dark:bg-green-900/20 dark:text-green-100'
     }
-    
-    return 'border-gray-300 opacity-60'
+
+    return 'border-gray-300 opacity-60 dark:border-gray-600'
   }
 
   return (
@@ -300,16 +303,20 @@ export function TaskCard({ task, index, lessonId, courseSlug, userProgress }: Ta
                   'flex items-center border-2 rounded-lg transition-all',
                   ui.choiceRow,
                   getOptionClassName(choice.text),
-                  !hasChecked && 'hover:border-blue-300'
+                  !hasChecked && 'hover:border-blue-300 dark:hover:border-blue-500'
                 )}
                 onClick={() => !hasChecked && setSelectedAnswer(choice.text)}
               >
                 <div className={cn(
                   'rounded-full border-2 flex items-center justify-center font-semibold shrink-0',
                   ui.radioCircle,
-                  selectedAnswer === choice.text && !hasChecked && 'border-blue-500 bg-blue-50',
-                  selectedAnswer === choice.text && isCorrect && 'border-green-600 bg-green-500 text-white',
-                  selectedAnswer === choice.text && isCorrect === false && 'border-red-600 bg-red-500 text-white'
+                  selectedAnswer === choice.text && !hasChecked && 'border-blue-500 bg-blue-50 dark:border-blue-500 dark:bg-blue-950/40',
+                  selectedAnswer === choice.text &&
+                    isCorrect &&
+                    'border-green-600 bg-green-50 text-green-700 dark:border-green-600 dark:bg-green-900/30 dark:text-green-200',
+                  selectedAnswer === choice.text &&
+                    isCorrect === false &&
+                    'border-red-600 bg-red-50 text-red-700 dark:border-red-600 dark:bg-red-900/30 dark:text-red-200'
                 )}>
                   {selectedAnswer === choice.text && hasChecked ? (
                     isCorrect ? <CheckCircle className={ui.feedbackIcon} /> : <XCircle className={ui.feedbackIcon} />
@@ -333,16 +340,20 @@ export function TaskCard({ task, index, lessonId, courseSlug, userProgress }: Ta
                   'flex items-center border-2 rounded-lg transition-all',
                   ui.choiceRow,
                   getOptionClassName(value),
-                  !hasChecked && 'hover:border-blue-300'
+                  !hasChecked && 'hover:border-blue-300 dark:hover:border-blue-500'
                 )}
                 onClick={() => !hasChecked && setSelectedAnswer(value)}
               >
                 <div className={cn(
                   'rounded-full border-2 flex items-center justify-center shrink-0',
                   ui.radioCircle,
-                  selectedAnswer === value && !hasChecked && 'border-blue-500 bg-blue-50',
-                  selectedAnswer === value && isCorrect && 'border-green-600 bg-green-500 text-white',
-                  selectedAnswer === value && isCorrect === false && 'border-red-600 bg-red-500 text-white'
+                  selectedAnswer === value && !hasChecked && 'border-blue-500 bg-blue-50 dark:border-blue-500 dark:bg-blue-950/40',
+                  selectedAnswer === value &&
+                    isCorrect &&
+                    'border-green-600 bg-green-50 text-green-700 dark:border-green-600 dark:bg-green-900/30 dark:text-green-200',
+                  selectedAnswer === value &&
+                    isCorrect === false &&
+                    'border-red-600 bg-red-50 text-red-700 dark:border-red-600 dark:bg-red-900/30 dark:text-red-200'
                 )}>
                   {selectedAnswer === value && hasChecked ? (
                     isCorrect ? <CheckCircle className={ui.feedbackIcon} /> : <XCircle className={ui.feedbackIcon} />
@@ -362,8 +373,12 @@ export function TaskCard({ task, index, lessonId, courseSlug, userProgress }: Ta
                 'w-full border-2 rounded-lg p-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all',
                 ui.textareaMinH,
                 ui.sc.body,
-                hasChecked && isCorrect === true && 'border-green-500 bg-green-50',
-                hasChecked && isCorrect === false && 'border-red-500 bg-red-50'
+                hasChecked &&
+                  isCorrect === true &&
+                  'border-green-500 bg-green-50 text-green-900 dark:border-green-600 dark:bg-green-900/20 dark:text-green-100',
+                hasChecked &&
+                  isCorrect === false &&
+                  'border-red-500 bg-red-50 text-red-900 dark:border-red-600 dark:bg-red-900/20 dark:text-red-100'
               )}
               placeholder="Type your answer..."
               value={openAnswer}

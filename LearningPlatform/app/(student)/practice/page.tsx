@@ -221,9 +221,9 @@ function PracticeTaskCard({ task, index, total, onComplete }: PracticeTaskCardPr
                 )}
               >
                 {result?.isCorrect ? (
-                  <CheckCircle className="h-5 w-5 shrink-0 text-green-600" />
+                  <CheckCircle className="h-5 w-5 shrink-0 text-green-700 dark:text-green-400" />
                 ) : (
-                  <XCircle className="h-5 w-5 shrink-0 text-red-600" />
+                  <XCircle className="h-5 w-5 shrink-0 text-red-700 dark:text-red-400" />
                 )}
                 <div>
                   <p
@@ -357,9 +357,11 @@ function Summary({ results, onRestart }: SummaryProps) {
               key={i}
               className={cn(
                 'flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold text-white',
-                r.isCorrect === true && 'bg-green-500',
-                r.isCorrect === false && 'bg-red-400',
-                r.isCorrect === null && 'bg-gray-400',
+                r.isCorrect === true &&
+                  'bg-green-600 text-white dark:bg-green-800 dark:text-green-100',
+                r.isCorrect === false &&
+                  'bg-red-500 text-white dark:bg-red-900 dark:text-red-100',
+                r.isCorrect === null && 'bg-gray-400 text-white dark:bg-gray-600 dark:text-gray-100',
               )}
             >
               {i + 1}
