@@ -87,6 +87,18 @@ export const createMockPrisma = (overrides = {}) => {
       })),
     },
     
+    // FlashcardDeck operations
+    flashcardDeck: {
+      create:     vi.fn((args) => createMockResult({ id: 'mock-deck-id', tags: [], ...args.data })),
+      findUnique: vi.fn(() => createMockResult(null)),
+      findFirst:  vi.fn(() => createMockResult(null)),
+      findMany:   vi.fn(() => createMockResult([])),
+      update:     vi.fn((args) => createMockResult({ id: args.where.id, tags: [], ...args.data })),
+      delete:     vi.fn((args) => createMockResult({ id: args.where.id })),
+      upsert:     vi.fn((args) => createMockResult({ id: 'mock-id', ...args.create })),
+      count:      vi.fn(() => createMockResult(0)),
+    },
+
     // Flashcard operations
     flashcard: {
       create:     vi.fn((args) => createMockResult({ id: 'mock-flashcard-id', tags: [], ...args.data })),

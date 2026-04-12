@@ -32,6 +32,7 @@ interface Flashcard {
   easeFactor: number
   repetition: number
   tags: Tag[]
+  deck: { id: string; name: string; slug: string }
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -139,6 +140,7 @@ export default function FlashcardsByTagPage({
       id: card.id,
       question: card.question,
       answer: card.answer,
+      deckId: card.deck.id,
       questionImageId: card.questionImageId,
       answerImageId: card.answerImageId,
       tagIds: card.tags.map((t) => t.id),

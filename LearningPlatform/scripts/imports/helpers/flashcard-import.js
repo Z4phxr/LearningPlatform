@@ -11,11 +11,11 @@ function sameIdList(a, b) {
 }
 
 /**
- * Find a flashcard with the same question and tag set (order-insensitive).
+ * Find a flashcard with the same question, deck, and tag set (order-insensitive).
  */
-async function findFlashcardByQuestionAndTags(prisma, question, desiredTagIds) {
+async function findFlashcardByQuestionTagsAndDeck(prisma, question, desiredTagIds, deckId) {
   const candidates = await prisma.flashcard.findMany({
-    where: { question },
+    where: { question, deckId },
     include: { tags: true },
   })
 
@@ -23,7 +23,7 @@ async function findFlashcardByQuestionAndTags(prisma, question, desiredTagIds) {
 
   if (matches.length > 1) {
     console.warn(
-      `[WARN] Multiple flashcards share the same question and tag set (${matches.length} rows). Using ${matches[0].id}.`,
+      `[WARN] Multiple flashcards share the same question, deck, and tag set (${matches.length} rows). Using ${matches[0].id}.`,
     )
   }
 
@@ -39,11 +39,69 @@ function needsFlashcardUpdate(existing, answer, desiredTagIds) {
 }
 
 /**
+ * Create or update deck metadata by slug (idempotent).
+ *
+ * @param {import('@prisma/client').PrismaClient} prisma
+ * @param {{ slug: string, name?: string, description?: string | null, tagSlugs?: string[] }} spec
+ */
+async function upsertFlashcardDeck(prisma, spec, { dryRun }) {
+  const slug = typeof spec.slug === 'string' && spec.slug.trim() ? spec.slug.trim() : null
+  if (!slug) {
+    throw new Error('Deck slug is required')
+  }
+  const name = typeof spec.name === 'string' && spec.name.trim() ? spec.name.trim() : slug
+  const description =
+    spec.description == null || spec.description === '' ? null : String(spec.description)
+  const tagSlugs = Array.isArray(spec.tagSlugs) ? spec.tagSlugs : []
+  const desiredTagIds = await getTagIdsBySlug(prisma, tagSlugs)
+
+  const existing = await prisma.flashcardDeck.findUnique({
+    where: { slug },
+    include: { tags: true },
+  })
+
+  if (dryRun) {
+    // Per-slug placeholder so parallel dry-run decks do not share one id (dedupe keys stay distinct)
+    const placeholderId = existing?.id ?? `dry-run-deck:${slug}`
+    return { id: placeholderId, slug, created: !existing }
+  }
+
+  if (!existing) {
+    const row = await prisma.flashcardDeck.create({
+      data: {
+        slug,
+        name,
+        description,
+        tags: { connect: desiredTagIds.map((id) => ({ id })) },
+      },
+    })
+    console.log(`[CREATE] Flashcard deck: ${slug} (${name})`)
+    return { id: row.id, slug, created: true }
+  }
+
+  await prisma.flashcardDeck.update({
+    where: { slug },
+    data: {
+      name,
+      description,
+      tags: { set: desiredTagIds.map((id) => ({ id })) },
+    },
+  })
+  console.log(`[UPDATE] Flashcard deck: ${slug}`)
+  return { id: existing.id, slug, created: false }
+}
+
+/**
  * @param {import('@prisma/client').PrismaClient} prisma
  * @param {Array<{ question: string, answer: string, tagSlugs?: string[] }>} cards
+ * @param {{ dryRun: boolean, deckId: string }} opts
  */
-async function importFlashcardsFromList(prisma, cards, { dryRun }) {
+async function importFlashcardsFromList(prisma, cards, { dryRun, deckId }) {
   const stats = { created: 0, updated: 0, skipped: 0, errors: [] }
+
+  if (!deckId) {
+    throw new Error('deckId is required')
+  }
 
   if (!Array.isArray(cards)) {
     throw new Error('Flashcard export must be an array')
@@ -57,7 +115,7 @@ async function importFlashcardsFromList(prisma, cards, { dryRun }) {
       }
 
       const tagSlugs = Array.isArray(card.tagSlugs) ? card.tagSlugs : []
-      const dedupeKey = flashcardDedupeKey(card.question, tagSlugs)
+      const dedupeKey = flashcardDedupeKey(card.question, tagSlugs, deckId)
       const desiredTagIds = await getTagIdsBySlug(prisma, tagSlugs)
 
       const uniqueSlugCount = new Set(tagSlugs.map((s) => String(s).trim()).filter(Boolean)).size
@@ -67,7 +125,7 @@ async function importFlashcardsFromList(prisma, cards, { dryRun }) {
         )
       }
 
-      const existing = await findFlashcardByQuestionAndTags(prisma, card.question, desiredTagIds)
+      const existing = await findFlashcardByQuestionTagsAndDeck(prisma, card.question, desiredTagIds, deckId)
 
       if (!existing) {
         if (dryRun) {
@@ -80,6 +138,7 @@ async function importFlashcardsFromList(prisma, cards, { dryRun }) {
           data: {
             question: card.question,
             answer: card.answer,
+            deckId,
             tags: { connect: desiredTagIds.map((id) => ({ id })) },
           },
         })
@@ -122,5 +181,6 @@ async function importFlashcardsFromList(prisma, cards, { dryRun }) {
 
 module.exports = {
   importFlashcardsFromList,
-  findFlashcardByQuestionAndTags,
+  upsertFlashcardDeck,
+  findFlashcardByQuestionTagsAndDeck,
 }

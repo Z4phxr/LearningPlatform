@@ -1,16 +1,53 @@
 const path = require('path')
-const { loadEnv, scanDataJsFiles, parseRunnerArgs, printRunnerHelp } = require('../helpers/utils')
+const {
+  loadEnv,
+  scanDataJsFiles,
+  parseRunnerArgs,
+  printRunnerHelp,
+  slugifyDeckBasename,
+  deckTitleFromSlug,
+} = require('../helpers/utils')
 const { createPrismaClient } = require('../helpers/prisma-client')
-const { importFlashcardsFromList } = require('../helpers/flashcard-import')
+const { importFlashcardsFromList, upsertFlashcardDeck } = require('../helpers/flashcard-import')
 
 const APP_ROOT = path.join(__dirname, '../../..')
 const DATA_DIR = path.join(__dirname, '../data/flashcards')
+
+function normalizeFlashcardExport(exported, filePath) {
+  const baseSlug = slugifyDeckBasename(path.basename(filePath, '.js'))
+
+  if (Array.isArray(exported)) {
+    return {
+      deckSpec: { slug: baseSlug, name: deckTitleFromSlug(baseSlug) },
+      cards: exported,
+    }
+  }
+
+  if (exported && typeof exported === 'object' && Array.isArray(exported.cards)) {
+    const deck = exported.deck && typeof exported.deck === 'object' ? exported.deck : {}
+    const slug =
+      typeof deck.slug === 'string' && deck.slug.trim() ? deck.slug.trim() : baseSlug
+    const name =
+      typeof deck.name === 'string' && deck.name.trim() ? deck.name.trim() : deckTitleFromSlug(slug)
+    return {
+      deckSpec: {
+        slug,
+        name,
+        description: deck.description,
+        tagSlugs: deck.tagSlugs,
+      },
+      cards: exported.cards,
+    }
+  }
+
+  return null
+}
 
 async function run() {
   loadEnv(APP_ROOT)
   const opts = parseRunnerArgs()
   if (opts.help) {
-    printRunnerHelp('import-flashcards.js — Prisma flashcards (after tags)')
+    printRunnerHelp('import-flashcards.js — Prisma flashcard decks + cards (after tags)')
     return 0
   }
 
@@ -37,23 +74,35 @@ async function run() {
         continue
       }
 
-      const cards = exported?.default ?? exported
-      if (!Array.isArray(cards)) {
-        console.error(`[ERROR] ${path.basename(filePath)} must export an array`)
+      const raw = exported?.default ?? exported
+      const normalized = normalizeFlashcardExport(raw, filePath)
+
+      if (!normalized) {
+        console.error(
+          `[ERROR] ${path.basename(filePath)} must export an array of cards or { deck?, cards: [...] }`,
+        )
         hadError = true
         continue
       }
 
-      const result = await importFlashcardsFromList(prisma, cards, { dryRun: opts.dryRun })
-      if (result.errors.length > 0) {
+      const { deckSpec, cards } = normalized
+
+      try {
+        const { id: deckId } = await upsertFlashcardDeck(prisma, deckSpec, { dryRun: opts.dryRun })
+        const result = await importFlashcardsFromList(prisma, cards, { dryRun: opts.dryRun, deckId })
+        if (result.errors.length > 0) {
+          hadError = true
+        }
+        console.log('[INFO] Flashcards batch summary:', {
+          created: result.created,
+          updated: result.updated,
+          skipped: result.skipped,
+          errors: result.errors.length,
+        })
+      } catch (err) {
+        console.error(`[ERROR] ${path.basename(filePath)}: ${err.message || err}`)
         hadError = true
       }
-      console.log('[INFO] Flashcards batch summary:', {
-        created: result.created,
-        updated: result.updated,
-        skipped: result.skipped,
-        errors: result.errors.length,
-      })
     }
 
     await disconnect()

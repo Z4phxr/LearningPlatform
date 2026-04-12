@@ -18,11 +18,18 @@ interface Tag {
   slug: string
 }
 
+interface FlashcardDeckRow {
+  id: string
+  name: string
+  slug: string
+}
+
 export interface FlashcardInitialData {
   /** When present the dialog operates in **edit** mode. */
   id: string
   question: string
   answer: string
+  deckId: string
   questionImageId?: string | null
   answerImageId?: string | null
   tagIds: string[]
@@ -147,6 +154,11 @@ export function FlashcardDialog({ open, onClose, onSaved, initialData }: Flashca
   const [answerImageUrl, setAnswerImageUrl] = useState<string | undefined>()
   const [showAnswerPicker, setShowAnswerPicker] = useState(false)
 
+  // ── Deck ─────────────────────────────────────────────────────────────────────
+  const [decks, setDecks] = useState<FlashcardDeckRow[]>([])
+  const [deckId, setDeckId] = useState<string>('')
+  const [decksLoading, setDecksLoading] = useState(false)
+
   // ── Tags ─────────────────────────────────────────────────────────────────────
   const [availableTags, setAvailableTags] = useState<Tag[]>([])
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([])
@@ -174,13 +186,32 @@ export function FlashcardDialog({ open, onClose, onSaved, initialData }: Flashca
     setError('')
     setFieldErrors({})
 
-    // Load tags
     setTagsLoading(true)
-    fetch('/api/tags')
-      .then((r) => r.json())
-      .then((data) => setAvailableTags(data.tags ?? []))
-      .catch(() => setAvailableTags([]))
-      .finally(() => setTagsLoading(false))
+    setDecksLoading(true)
+    Promise.all([
+      fetch('/api/tags').then((r) => r.json()),
+      fetch('/api/flashcard-decks').then((r) => r.json()),
+    ])
+      .then(([tagData, deckData]) => {
+        setAvailableTags(tagData.tags ?? [])
+        const list: FlashcardDeckRow[] = deckData.decks ?? []
+        setDecks(list)
+        const preferred = initialData?.deckId
+        const resolved =
+          preferred && list.some((d) => d.id === preferred)
+            ? preferred
+            : list[0]?.id ?? ''
+        setDeckId(resolved)
+      })
+      .catch(() => {
+        setAvailableTags([])
+        setDecks([])
+        setDeckId('')
+      })
+      .finally(() => {
+        setTagsLoading(false)
+        setDecksLoading(false)
+      })
 
     // Resolve image URLs in edit mode
     const idsToResolve = [initialData?.questionImageId, initialData?.answerImageId].filter(Boolean)
@@ -243,9 +274,16 @@ export function FlashcardDialog({ open, onClose, onSaved, initialData }: Flashca
     setError('')
     setFieldErrors({})
 
+    if (!deckId) {
+      setError('Choose a deck before saving.')
+      setSubmitting(false)
+      return
+    }
+
     const body = {
       question,
       answer,
+      deckId,
       questionImageId: questionImageId ?? null,
       answerImageId: answerImageId ?? null,
       tagIds: selectedTagIds,
@@ -376,6 +414,37 @@ export function FlashcardDialog({ open, onClose, onSaved, initialData }: Flashca
                 onOpen={() => setShowAnswerPicker(true)}
               />
             </div>
+          </section>
+
+          {/* ── Deck ── */}
+          <section>
+            <Label htmlFor="flashcard-deck" className="mb-1 block font-medium">
+              Deck <span className="text-red-500">*</span>
+            </Label>
+            {decksLoading ? (
+              <p className="text-sm text-gray-400">Loading decks…</p>
+            ) : decks.length === 0 ? (
+              <p className="text-sm text-amber-600 dark:text-amber-400">
+                No decks yet. Run a flashcard import or create a deck via the API.
+              </p>
+            ) : (
+              <select
+                id="flashcard-deck"
+                value={deckId}
+                onChange={(e) => setDeckId(e.target.value)}
+                required
+                className="mt-1 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring dark:border-gray-700 dark:bg-gray-900"
+              >
+                {decks.map((d) => (
+                  <option key={d.id} value={d.id}>
+                    {d.name}
+                  </option>
+                ))}
+              </select>
+            )}
+            {fieldErrors.deckId && (
+              <p className="mt-1 text-xs text-red-500">{fieldErrors.deckId[0]}</p>
+            )}
           </section>
 
           {/* ── LaTeX quick preview ── */}

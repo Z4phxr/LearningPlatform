@@ -7,7 +7,7 @@
  *   srs  â€” Only shows cards that are due today (respects daily limits).
  *   free â€” Shows ALL cards in the set regardless of due date.
  *
- * An optional ?tagSlug= query param limits the session to one tag.
+ * Optional query params: ?tagSlug=, ?subject=, ?deckSlug= limit which cards load.
  *
  * The study loop:
  *  1. Fetch due cards from /api/flashcards/study
@@ -58,6 +58,7 @@ interface StudyCard {
   nextReviewAt:    string | null
   lastReviewedAt:  string | null
   tags:            Tag[]
+  deck?:           { id: string; name: string; slug: string } | null
 }
 
 type AnswerButton = 'AGAIN' | 'HARD' | 'GOOD' | 'EASY'
@@ -65,6 +66,23 @@ type Phase        = 'loading' | 'question' | 'answer' | 'submitting' | 'done' | 
 
 /** Cards answered Again/Hard in LEARNING are requeued if due within this window (ms). */
 const REQUEUE_WINDOW_MS = 25 * 60 * 1000  // 25 minutes
+
+function humanizeSlug(slug: string): string {
+  return slug
+    .split('-')
+    .filter(Boolean)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(' ')
+}
+
+function studyQuery(mode: string, tagSlug: string, subject: string, deckSlug: string): string {
+  const p = new URLSearchParams()
+  p.set('mode', mode)
+  if (tagSlug) p.set('tagSlug', tagSlug)
+  if (subject) p.set('subject', subject)
+  if (deckSlug) p.set('deckSlug', deckSlug)
+  return p.toString()
+}
 
 // â”€â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
@@ -154,9 +172,10 @@ export default function StudyPageWrapper() {
 function StudyPage() {
   const searchParams = useSearchParams()
 
-  const mode    = searchParams.get('mode') === 'free' ? 'free' : 'srs'
-  const tagSlug = searchParams.get('tagSlug') ?? ''
-  const subject = searchParams.get('subject') ?? ''
+  const mode     = searchParams.get('mode') === 'free' ? 'free' : 'srs'
+  const tagSlug  = searchParams.get('tagSlug') ?? ''
+  const subject  = searchParams.get('subject') ?? ''
+  const deckSlug = searchParams.get('deckSlug') ?? ''
   // â”€â”€ State â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   const [queue,        setQueue]        = useState<StudyCard[]>([])
@@ -182,9 +201,7 @@ function StudyPage() {
     setCurrentIdx(0)
     setReviewedCount(0)
     try {
-      const qs = new URLSearchParams({ mode })
-      if (tagSlug) qs.set('tagSlug', tagSlug)
-      if (subject) qs.set('subject', subject)
+      const qs = studyQuery(mode, tagSlug, subject, deckSlug)
       const res = await fetch(`/api/flashcards/study?${qs}`)
       if (!res.ok) throw new Error('Failed to load session')
       const data = await res.json()
@@ -196,7 +213,7 @@ function StudyPage() {
       setError('Could not load study session. Please try again.')
       setPhase('empty')
     }
-  }, [mode, tagSlug, subject])
+  }, [mode, tagSlug, subject, deckSlug])
 
   useEffect(() => { loadSession() }, [loadSession])
 
@@ -341,7 +358,13 @@ function StudyPage() {
             className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-800 dark:hover:text-gray-200"
           >
             <ArrowLeft className="h-4 w-4" />
-            {subject ? subject : (tagSlug ? tagSlug : 'Flashcards')}
+            {deckSlug
+              ? humanizeSlug(deckSlug)
+              : subject
+                ? subject
+                : tagSlug
+                  ? tagSlug
+                  : 'Flashcards'}
           </Link>
           <span className="text-gray-300 dark:text-gray-700">&middot;</span>
           <span className={cn(
@@ -408,7 +431,10 @@ function StudyPage() {
                 <Button variant="outline"><ArrowLeft className="mr-1 h-4 w-4 inline" /> Back</Button>
               </Link>
               {mode === 'srs' && (
-                <Link href={`/dashboard/flashcards/study?mode=free${tagSlug ? `&tagSlug=${tagSlug}` : ''}`} className="mt-2">
+                <Link
+                  href={`/dashboard/flashcards/study?${studyQuery('free', tagSlug, subject, deckSlug)}`}
+                  className="mt-2"
+                >
                   <Button>
                     <Zap className="mr-2 h-4 w-4" />
                     Free Learn

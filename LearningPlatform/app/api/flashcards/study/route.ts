@@ -13,7 +13,8 @@ import { getUserWeakTags } from '@/lib/analytics'
  *
  * Query parameters:
  *   mode     = "srs" | "free"   (default: "srs")
- *   tagSlug  = <slug>           (optional  filters to a single tag)
+ *   tagSlug   = <slug>          (optional  filters to a single tag)
+ *   deckSlug  = <slug>          (optional  limits to one flashcard deck)
  *
  * SRS mode:
  *   - Returns cards that are due NOW (new, overdue, or due today).
@@ -39,9 +40,10 @@ export async function GET(req: Request) {
   try {
     const user = await requireAuth()
     const { searchParams } = new URL(req.url)
-    const mode    = searchParams.get('mode') === 'free' ? 'free' : 'srs'
-    const tagSlug = searchParams.get('tagSlug') ?? undefined
-    const subject  = searchParams.get('subject') ?? undefined
+    const mode      = searchParams.get('mode') === 'free' ? 'free' : 'srs'
+    const tagSlug   = searchParams.get('tagSlug') ?? undefined
+    const subject   = searchParams.get('subject') ?? undefined
+    const deckSlugQ = searchParams.get('deckSlug')?.trim() || undefined
 
     // Kick off weak-tag fetch in parallel with settings  failure is graceful.
     const weakTagsPromise = getUserWeakTags(user.id).catch(() => [])
@@ -91,17 +93,23 @@ export async function GET(req: Request) {
     }
 
     // -- Fetch candidate flashcards --------------------------------------------
-    const whereFilter: any =
+    let whereFilter: any =
       tagSlug
         ? { tags: { some: { slug: tagSlug } } }
         : subjectTagSlugs && subjectTagSlugs.length > 0
         ? { tags: { some: { slug: { in: subjectTagSlugs } } } }
         : undefined
 
+    if (deckSlugQ) {
+      const deckPart = { deck: { slug: deckSlugQ } }
+      whereFilter = whereFilter ? { AND: [whereFilter, deckPart] } : deckPart
+    }
+
     const flashcards = await prisma.flashcard.findMany({
       where: whereFilter,
       include: {
         tags: { select: { id: true, name: true, slug: true } },
+        deck: { select: { id: true, name: true, slug: true } },
       },
     })
 
@@ -117,6 +125,7 @@ export async function GET(req: Request) {
         id: card.id, question: card.question, answer: card.answer,
         questionImageId: card.questionImageId, answerImageId: card.answerImageId,
         tags: card.tags,
+        deck: card.deck,
         state:          (progress?.state          ?? 'NEW') as import('@/lib/srs').FlashcardState,
         interval:        progress?.interval        ?? 0,
         easeFactor:      progress?.easeFactor      ?? 2.5,
@@ -167,16 +176,22 @@ export async function GET(req: Request) {
     const startOfToday = new Date(now)
     startOfToday.setHours(0, 0, 0, 0)
 
+    const flashcardScope: Record<string, unknown> = {}
+    if (tagSlug) {
+      flashcardScope.tags = { some: { slug: tagSlug } }
+    } else if (subjectTagSlugs && subjectTagSlugs.length > 0) {
+      flashcardScope.tags = { some: { slug: { in: subjectTagSlugs } } }
+    }
+    if (deckSlugQ) {
+      flashcardScope.deck = { slug: deckSlugQ }
+    }
+
     const newReviewedToday = await prisma.userFlashcardProgress.count({
       where: {
         userId: user.id,
         state: { not: 'NEW' },
         lastReviewedAt: { gte: startOfToday },
-        ...(tagSlug
-          ? { tags: { some: { slug: tagSlug } } }
-          : subjectTagSlugs && subjectTagSlugs.length > 0
-          ? { tags: { some: { slug: { in: subjectTagSlugs } } } }
-          : {}),
+        ...(Object.keys(flashcardScope).length > 0 ? { flashcard: flashcardScope } : {}),
       },
     })
 

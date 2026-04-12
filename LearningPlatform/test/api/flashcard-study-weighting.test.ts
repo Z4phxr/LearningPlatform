@@ -58,6 +58,7 @@ function card(
     answer:         `A ${id}`,
     questionImageId: null,
     answerImageId:   null,
+    deck:           { id: 'deck-test', name: 'Test', slug: 'test-deck' },
     state:           'REVIEW',
     interval:        1,
     easeFactor:      2.5,
