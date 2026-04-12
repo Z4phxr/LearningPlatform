@@ -1,4 +1,11 @@
-module.exports = [
+module.exports = {
+  deck: {
+    slug: 'relativity-prep-flashcards',
+    name: 'Relativity Prep',
+    description: 'Interview prep flashcards (Relativity, Java, cloud, process).',
+    tagSlugs: ['interview-prep'],
+  },
+  cards: [
   // ─────────────────────────────────────────────
   // OOP FUNDAMENTALS (~25 kart)
   // ─────────────────────────────────────────────
@@ -346,4 +353,5 @@ module.exports = [
     answer: 'CI (Continuous Integration): przy kazdym commicie automatycznie: build, unit tests, code analysis. CD (Continuous Deployment): automatyczny deployment do staging lub prod. Typowy pipeline (GitHub Actions): commit -> testy -> build Docker image -> push do registry (ACR) -> deploy do K8s (kubectl set image) -> weryfikacja (rollout status). Cel: czeste, bezpieczne wdrazanie. Feature flags dla nowych funkcji bez ryzyka.',
     tagSlugs: ['interview-prep', 'azure', 'intermediate']
   }
-];
+  ],
+};

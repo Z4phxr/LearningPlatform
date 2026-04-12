@@ -1,4 +1,11 @@
-module.exports = [
+module.exports = {
+  deck: {
+    slug: 'algorithms-interview-prep-intermediate-flashcards',
+    name: 'Algorithms Interview Prep (Intermediate)',
+    description: 'Big-O, data structures, and algorithms flashcards.',
+    tagSlugs: ['algorithms', 'interview-prep'],
+  },
+  cards: [
     {
       question: 'What is Big O notation used for?',
       answer: 'Big O notation describes how an algorithm’s runtime or space requirements grow as input size increases. It focuses on worst-case performance and helps compare algorithm efficiency independently of hardware.',
@@ -211,4 +218,5 @@ module.exports = [
       answer: 'Brute force tries all possible solutions without optimization.',
       tagSlugs: ['algorithms']
     }
-  ];
+  ],
+};

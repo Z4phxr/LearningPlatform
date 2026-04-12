@@ -99,8 +99,23 @@ model Tag {
   main             Boolean           @default(false)
   taskProgressTags TaskProgressTag[]
   flashcards       Flashcard[]       @relation("FlashcardTags")
+  flashcardDecks   FlashcardDeck[]   @relation("DeckTags")
 
   @@map("tags")
+}
+
+/// Named container for flashcards (import scripts upsert by `slug`).
+model FlashcardDeck {
+  id          String      @id @default(cuid())
+  slug        String      @unique
+  name        String
+  description String?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  flashcards  Flashcard[]
+  tags        Tag[]       @relation("DeckTags")
+
+  @@map("flashcard_decks")
 }
 
 /// A study flashcard with LaTeX-friendly text and optional media attachments.
@@ -113,12 +128,15 @@ model Flashcard {
   questionImageId String?
   /// ID of a Payload CMS media record (image).  Null means no image attached.
   answerImageId   String?
+  deckId          String
+  deck            FlashcardDeck           @relation(fields: [deckId], references: [id], onDelete: Restrict)
   createdAt       DateTime                @default(now())
   updatedAt       DateTime                @updatedAt
   userProgress    UserFlashcardProgress[]
   tags            Tag[]                   @relation("FlashcardTags")
 
   @@index([createdAt])
+  @@index([deckId])
   @@map("flashcards")
 }
 

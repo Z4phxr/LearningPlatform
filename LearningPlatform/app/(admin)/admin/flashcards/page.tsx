@@ -33,6 +33,7 @@ interface Flashcard {
   easeFactor: number
   repetition: number
   tags: Tag[]
+  deck: { id: string; name: string; slug: string }
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -52,6 +53,8 @@ export default function AdminFlashcardsPage() {
   const [tagSortDir, setTagSortDir] = useState<'asc' | 'desc'>('asc')
   const [tagPage, setTagPage] = useState(1)
   const [sortKey, setSortKey] = useState<'newest' | 'oldest' | 'az' | 'za'>('newest')
+  const [selectedDeckSlug, setSelectedDeckSlug] = useState<string | null>(null)
+  const [deckOptions, setDeckOptions] = useState<Array<{ slug: string; name: string }>>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string>('')
 
@@ -64,21 +67,29 @@ export default function AdminFlashcardsPage() {
 
   // ── Data fetching ────────────────────────────────────────────────────────────
 
-  const fetchData = useCallback(async (tagSlugsCsv?: string | null) => {
+  const fetchData = useCallback(async (tagSlugsCsv?: string | null, deckSlug?: string | null) => {
     try {
       setLoading(true)
       setError('')
-      const [fcRes, tagRes] = await Promise.all([
-        fetch(`/api/flashcards${tagSlugsCsv ? `?tagSlugs=${encodeURIComponent(tagSlugsCsv)}` : ''}`),
+      const params = new URLSearchParams()
+      if (tagSlugsCsv) params.set('tagSlugs', tagSlugsCsv)
+      if (deckSlug) params.set('deckSlug', deckSlug)
+      const qs = params.toString()
+      const [fcRes, tagRes, deckRes] = await Promise.all([
+        fetch(`/api/flashcards${qs ? `?${qs}` : ''}`),
         fetch('/api/tags'),
+        fetch('/api/flashcard-decks'),
       ])
       if (!fcRes.ok) throw new Error('Failed to load flashcards')
       const fcData = await fcRes.json()
       const tagData = tagRes.ok ? await tagRes.json() : { tags: [] }
+      const deckData = deckRes.ok ? await deckRes.json() : { decks: [] }
       const cards = fcData.flashcards ?? []
       setFlashcards(cards)
       // Keep full tag list in state; UI decides which to show via toggle
       setAllTags(tagData.tags ?? [])
+      const dlist = deckData.decks ?? []
+      setDeckOptions(dlist.map((d: { slug: string; name: string }) => ({ slug: d.slug, name: d.name })))
     } catch {
       setError('Could not load data. Please try again.')
     } finally {
@@ -88,8 +99,8 @@ export default function AdminFlashcardsPage() {
 
   useEffect(() => {
     const tagSlugsCsv = selectedTagSlugs.size > 0 ? Array.from(selectedTagSlugs).join(',') : null
-    void fetchData(tagSlugsCsv)
-  }, [fetchData, selectedTagSlugs])
+    void fetchData(tagSlugsCsv, selectedDeckSlug)
+  }, [fetchData, selectedTagSlugs, selectedDeckSlug])
 
   // Reset tag pagination when toggling between main/all tags
   useEffect(() => {
@@ -108,6 +119,7 @@ export default function AdminFlashcardsPage() {
       id: card.id,
       question: card.question,
       answer: card.answer,
+      deckId: card.deck.id,
       questionImageId: card.questionImageId,
       answerImageId: card.answerImageId,
       tagIds: card.tags.map((t) => t.id),
@@ -171,7 +183,23 @@ export default function AdminFlashcardsPage() {
             Create, edit and organise flashcards. Students study them in their dashboard.
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="relative">
+            <label htmlFor="flashcard-deck-filter" className="sr-only">Filter by deck</label>
+            <select
+              id="flashcard-deck-filter"
+              value={selectedDeckSlug ?? ''}
+              onChange={(e) => setSelectedDeckSlug(e.target.value || null)}
+              className="h-9 min-w-[10rem] rounded-md border border-input bg-background px-3 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
+            >
+              <option value="">All decks</option>
+              {deckOptions.map((d) => (
+                <option key={d.slug} value={d.slug}>
+                  {d.name}
+                </option>
+              ))}
+            </select>
+          </div>
           <div className="relative">
             <label htmlFor="flashcard-sort" className="sr-only">Sort flashcards</label>
             <div className="pointer-events-none absolute inset-y-0 left-2.5 flex items-center">
@@ -409,6 +437,12 @@ export default function AdminFlashcardsPage() {
                   <p className="font-mono text-sm text-gray-600 dark:text-gray-400">
                     {truncate(card.answer)}
                   </p>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="rounded-md bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700 dark:bg-slate-800 dark:text-slate-200">
+                    {card.deck?.name ?? 'Deck'}
+                  </span>
                 </div>
 
                 {/* Tags */}

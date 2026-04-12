@@ -10,6 +10,7 @@ import { logActivity, ActivityAction } from '@/lib/activity-log'
 const updateFlashcardSchema = z.object({
   question: z.string().min(1).optional(),
   answer: z.string().min(1).optional(),
+  deckId: z.string().min(1).optional(),
   questionImageId: z.string().nullable().optional(),
   answerImageId: z.string().nullable().optional(),
   tagIds: z.array(z.string()).optional(),
@@ -26,7 +27,10 @@ export async function GET(_req: Request, ctx: RouteContext) {
 
     const flashcard = await prisma.flashcard.findUnique({
       where: { id },
-      include: { tags: { select: { id: true, name: true, slug: true } } },
+      include: {
+        tags: { select: { id: true, name: true, slug: true } },
+        deck: { select: { id: true, name: true, slug: true } },
+      },
     })
 
     if (!flashcard) {
@@ -70,7 +74,10 @@ export async function PUT(req: Request, ctx: RouteContext) {
           tags: { set: tagIds.map((tid) => ({ id: tid })) },
         }),
       },
-      include: { tags: { select: { id: true, name: true, slug: true } } },
+      include: {
+        tags: { select: { id: true, name: true, slug: true } },
+        deck: { select: { id: true, name: true, slug: true } },
+      },
     })
 
     logActivity({

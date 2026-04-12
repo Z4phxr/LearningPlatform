@@ -86,13 +86,31 @@ function normalizeWhitespace(s) {
 
 /**
  * Stable idempotency key for flashcards (no DB column required).
- * Uses question + canonical tag slug list.
+ * Uses question + deck + canonical tag slug list.
  */
-function flashcardDedupeKey(question, tagSlugs) {
+function flashcardDedupeKey(question, tagSlugs, deckId) {
   const q = normalizeWhitespace(question)
+  const deck = deckId != null ? String(deckId) : ''
   const tags = [...new Set((tagSlugs || []).map((t) => String(t).trim()).filter(Boolean))].sort()
-  const payload = `${q}\u0000${tags.join('\u0000')}`
+  const payload = `${q}\u0000${deck}\u0000${tags.join('\u0000')}`
   return crypto.createHash('sha256').update(payload, 'utf8').digest('hex')
+}
+
+/** Derive a URL-safe deck slug from a flashcard data filename (without `.js`). */
+function slugifyDeckBasename(filenameWithoutExt) {
+  const s = String(filenameWithoutExt)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+  return s || 'flashcards'
+}
+
+function deckTitleFromSlug(slug) {
+  return String(slug)
+    .split('-')
+    .filter(Boolean)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(' ')
 }
 
 function assertNonEmptyString(value, label) {
@@ -204,6 +222,8 @@ module.exports = {
   isLexicalRichText,
   textToLexical,
   normalizeWhitespace,
+  slugifyDeckBasename,
+  deckTitleFromSlug,
   flashcardDedupeKey,
   assertNonEmptyString,
   assertPlainObject,

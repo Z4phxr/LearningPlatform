@@ -58,6 +58,8 @@ const MOCK_FLASHCARD = {
   answer:         '4',
   questionImageId: null,
   answerImageId:   null,
+  deckId:         'deck-1',
+  deck:           { id: 'deck-1', name: 'Test Deck', slug: 'test-deck' },
   state:           'NEW',
   interval:        0,
   easeFactor:      2.5,
@@ -150,7 +152,7 @@ describe('POST /api/flashcards', () => {
 
   it('returns 401 for unauthenticated callers', async () => {
     noSession()
-    const req = makeRequest('POST', 'http://localhost/api/flashcards', { question: 'Q', answer: 'A' })
+    const req = makeRequest('POST', 'http://localhost/api/flashcards', { question: 'Q', answer: 'A', deckId: 'd1' })
     const res = await listPost(req)
     expect(res.status).toBe(401)
   })
@@ -179,6 +181,13 @@ describe('POST /api/flashcards', () => {
     expect(res.status).toBe(400)
   })
 
+  it('returns 400 when deckId is missing', async () => {
+    adminSession()
+    const req = makeRequest('POST', 'http://localhost/api/flashcards', { question: 'Q', answer: 'A' })
+    const res = await listPost(req)
+    expect(res.status).toBe(400)
+  })
+
   it('creates flashcard and returns 201 for valid body', async () => {
     adminSession()
     vi.mocked(mockPrisma.flashcard.create).mockResolvedValue({ ...MOCK_FLASHCARD, id: 'new-fc' } as any)
@@ -186,6 +195,7 @@ describe('POST /api/flashcards', () => {
     const req = makeRequest('POST', 'http://localhost/api/flashcards', {
       question: 'What is the capital of France?',
       answer:   'Paris',
+      deckId:   'deck-1',
       tagIds:   [],
     })
     const res = await listPost(req)
@@ -195,7 +205,11 @@ describe('POST /api/flashcards', () => {
     expect(data.flashcard.id).toBe('new-fc')
     expect(mockPrisma.flashcard.create).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: expect.objectContaining({ question: 'What is the capital of France?', answer: 'Paris' }),
+        data: expect.objectContaining({
+          question: 'What is the capital of France?',
+          answer: 'Paris',
+          deckId: 'deck-1',
+        }),
       }),
     )
   })
@@ -207,6 +221,7 @@ describe('POST /api/flashcards', () => {
     const req = makeRequest('POST', 'http://localhost/api/flashcards', {
       question: 'Q',
       answer:   'A',
+      deckId:   'deck-1',
       tagIds:   ['tag-1', 'tag-2'],
     })
     await listPost(req)

@@ -4,7 +4,7 @@
  * ─── FlashcardDashboardSection ───────────────────────────────────────────────
  *
  * Shows on the student dashboard under "Your Flashcards".
- * Renders one block for "All Flashcards" and one block per tag.
+ * Renders "All Flashcards", one block per imported deck, then subject or tag slices.
  * Each block displays total / new / due counts and Study / Free Learn links.
  */
 
@@ -24,11 +24,18 @@ interface Tag {
   slug: string
 }
 
+interface FlashcardDeckSummary {
+  id: string
+  name: string
+  slug: string
+}
+
 interface Flashcard {
   id: string
   state: 'NEW' | 'LEARNING' | 'REVIEW' | 'RELEARNING' | 'MASTERED'
   nextReviewAt: string | null
   tags: Tag[]
+  deck?: FlashcardDeckSummary | null
 }
 
 interface Subject {
@@ -152,10 +159,12 @@ function FlashcardBlocksCarousel({
   flashcards,
   subjects,
   tags,
+  decks,
 }: {
   flashcards: Flashcard[]
   subjects: Subject[]
   tags: Tag[]
+  decks: FlashcardDeckSummary[]
 }) {
   const items: ReactNode[] = [
     <FlashcardBlock
@@ -166,6 +175,21 @@ function FlashcardBlocksCarousel({
       freeHref="/dashboard/flashcards/study?mode=free"
     />,
   ]
+
+  for (const deck of decks) {
+    const deckCards = flashcards.filter((c) => c.deck?.slug === deck.slug)
+    if (deckCards.length === 0) continue
+    const slugQ = encodeURIComponent(deck.slug)
+    items.push(
+      <FlashcardBlock
+        key={`deck:${deck.slug}`}
+        title={deck.name}
+        stats={computeStats(deckCards)}
+        studyHref={`/dashboard/flashcards/study?mode=srs&deckSlug=${slugQ}`}
+        freeHref={`/dashboard/flashcards/study?mode=free&deckSlug=${slugQ}`}
+      />,
+    )
+  }
 
   if (subjects.length > 0) {
     for (const subject of subjects) {
@@ -221,6 +245,7 @@ function FlashcardBlocksCarousel({
 
 export function FlashcardDashboardSection() {
   const [flashcards, setFlashcards] = useState<Flashcard[]>([])
+  const [decks, setDecks] = useState<FlashcardDeckSummary[]>([])
   const [tags, setTags] = useState<Tag[]>([])
   const [subjects, setSubjects] = useState<Subject[]>([])
   const [loading, setLoading] = useState(true)
@@ -246,6 +271,16 @@ export function FlashcardDashboardSection() {
 
         setFlashcards(cards)
         setTags(Array.from(tagMap.values()))
+
+        const deckMap = new Map<string, FlashcardDeckSummary>()
+        for (const c of cards) {
+          if (c.deck?.slug) {
+            deckMap.set(c.deck.slug, c.deck)
+          }
+        }
+        setDecks(
+          Array.from(deckMap.values()).sort((a, b) => a.name.localeCompare(b.name)),
+        )
 
         // Try to load a taxonomy of subject headings (optional). If present,
         // this file maps main subject names -> arrays of granular tag slugs.
@@ -313,6 +348,7 @@ export function FlashcardDashboardSection() {
           flashcards={flashcards}
           subjects={subjects}
           tags={tags}
+          decks={decks}
         />
       )}
 

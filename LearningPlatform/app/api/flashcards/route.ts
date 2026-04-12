@@ -5,16 +5,19 @@ import { unstable_cache, revalidateTag } from 'next/cache'
 import { z } from 'zod'
 import { logActivity, ActivityAction } from '@/lib/activity-log'
 
-// Cache flashcard list per tagSlugs key (null key = unfiltered)
-const getCachedFlashcards = (tagSlugsKey: string | null, whereClause: any) =>
+// Cache flashcard list per composite key (tags + optional deck)
+const getCachedFlashcards = (cacheKey: string, whereClause: any) =>
   unstable_cache(
     async () =>
       prisma.flashcard.findMany({
         where: whereClause ?? undefined,
         orderBy: { createdAt: 'desc' },
-        include: { tags: { select: { id: true, name: true, slug: true } } },
+        include: {
+          tags: { select: { id: true, name: true, slug: true } },
+          deck: { select: { id: true, name: true, slug: true } },
+        },
       }),
-    [`api-flashcards-${tagSlugsKey ?? 'all'}`],
+    [`api-flashcards-${cacheKey}`],
     { revalidate: 30, tags: ['api-flashcards'] },
   )()
 
@@ -23,6 +26,7 @@ const getCachedFlashcards = (tagSlugsKey: string | null, whereClause: any) =>
 const createFlashcardSchema = z.object({
   question: z.string().min(1, 'Question is required'),
   answer: z.string().min(1, 'Answer is required'),
+  deckId: z.string().min(1, 'Deck is required'),
   questionImageId: z.string().nullable().optional(),
   answerImageId: z.string().nullable().optional(),
   tagIds: z.array(z.string()).optional().default([]),
@@ -40,6 +44,7 @@ export async function GET(req: Request) {
     const tagSlug = searchParams.get('tagSlug')
     const tagSlugsParam = searchParams.get('tagSlugs')
     const tagSlugs = tagSlugsParam ? tagSlugsParam.split(',').map((s) => s.trim()).filter(Boolean) : (tagSlug ? [tagSlug] : [])
+    const deckSlug = searchParams.get('deckSlug')?.trim() || undefined
 
     let whereClause = undefined
     if (tagSlugs.length === 1) {
@@ -48,8 +53,12 @@ export async function GET(req: Request) {
       // AND semantics: flashcard must have ALL specified tags
       whereClause = { AND: tagSlugs.map((s) => ({ tags: { some: { slug: s } } })) }
     }
+    if (deckSlug) {
+      const deckFilter = { deck: { slug: deckSlug } }
+      whereClause = whereClause ? { AND: [whereClause, deckFilter] } : deckFilter
+    }
 
-    const cacheKey = tagSlugs.length ? tagSlugs.join(',') : null
+    const cacheKey = `${tagSlugs.join('|') || 'all'}__deck:${deckSlug || 'all'}`
     const flashcards = await getCachedFlashcards(cacheKey, whereClause)
     return NextResponse.json({ flashcards })
   } catch (error) {
@@ -81,12 +90,13 @@ export async function POST(req: Request) {
       )
     }
 
-    const { question, answer, questionImageId, answerImageId, tagIds } = parsed.data
+    const { question, answer, deckId, questionImageId, answerImageId, tagIds } = parsed.data
 
     const flashcard = await prisma.flashcard.create({
       data: {
         question,
         answer,
+        deckId,
         questionImageId: questionImageId ?? null,
         answerImageId: answerImageId ?? null,
         tags: {
@@ -95,6 +105,7 @@ export async function POST(req: Request) {
       },
       include: {
         tags: { select: { id: true, name: true, slug: true } },
+        deck: { select: { id: true, name: true, slug: true } },
       },
     })
 
