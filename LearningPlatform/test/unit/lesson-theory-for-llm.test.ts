@@ -35,11 +35,12 @@ describe('truncateTheoryText', () => {
     expect(text).toBe('abc')
   })
 
-  it('truncates long text', () => {
-    const { text, truncated } = truncateTheoryText('x'.repeat(20), 10)
+  it('truncates long text without exceeding maxChars (marker included)', () => {
+    const maxChars = 80
+    const { text, truncated } = truncateTheoryText('x'.repeat(500), maxChars)
     expect(truncated).toBe(true)
-    expect(text.length).toBeLessThanOrEqual(200)
-    expect(text.startsWith('xxxxxxxxxx')).toBe(true)
+    expect(text.length).toBe(maxChars)
+    expect(text.includes('truncated')).toBe(true)
   })
 })
 

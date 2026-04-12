@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { requireAdmin } from '@/lib/auth-helpers'
 import { z } from 'zod'
@@ -69,6 +70,26 @@ export async function POST(req: Request) {
   } catch (error) {
     if (error instanceof Error && (error.message === 'Unauthorized' || error.message === 'Forbidden')) {
       return NextResponse.json({ error: error.message }, { status: error.message === 'Unauthorized' ? 401 : 403 })
+    }
+    if (error instanceof Prisma.PrismaClientKnownRequestError) {
+      if (error.code === 'P2002') {
+        return NextResponse.json(
+          {
+            error: 'Conflict',
+            issues: { slug: ['A deck with this slug already exists'] },
+          },
+          { status: 409 },
+        )
+      }
+      if (error.code === 'P2003') {
+        return NextResponse.json(
+          {
+            error: 'Validation failed',
+            issues: { tagIds: ['One or more tags do not exist'] },
+          },
+          { status: 400 },
+        )
+      }
     }
     console.error('[POST /api/flashcard-decks]', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

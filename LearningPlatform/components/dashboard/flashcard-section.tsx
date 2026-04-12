@@ -8,7 +8,7 @@
  * Each block displays total / new / due counts and Study / Free Learn links.
  */
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -166,6 +166,30 @@ function FlashcardBlocksCarousel({
   tags: Tag[]
   decks: FlashcardDeckSummary[]
 }) {
+  const cardsByDeckSlug = useMemo(() => {
+    const m = new Map<string, Flashcard[]>()
+    for (const c of flashcards) {
+      const slug = c.deck?.slug
+      if (!slug) continue
+      const list = m.get(slug)
+      if (list) list.push(c)
+      else m.set(slug, [c])
+    }
+    return m
+  }, [flashcards])
+
+  const cardsByTagSlug = useMemo(() => {
+    const m = new Map<string, Flashcard[]>()
+    for (const c of flashcards) {
+      for (const t of c.tags ?? []) {
+        const list = m.get(t.slug)
+        if (list) list.push(c)
+        else m.set(t.slug, [c])
+      }
+    }
+    return m
+  }, [flashcards])
+
   const items: ReactNode[] = [
     <FlashcardBlock
       key="all"
@@ -177,7 +201,7 @@ function FlashcardBlocksCarousel({
   ]
 
   for (const deck of decks) {
-    const deckCards = flashcards.filter((c) => c.deck?.slug === deck.slug)
+    const deckCards = cardsByDeckSlug.get(deck.slug) ?? []
     if (deckCards.length === 0) continue
     const slugQ = encodeURIComponent(deck.slug)
     items.push(
@@ -193,9 +217,17 @@ function FlashcardBlocksCarousel({
 
   if (subjects.length > 0) {
     for (const subject of subjects) {
-      const tagCards = flashcards.filter((c) =>
-        c.tags.some((t) => (subject.tagSlugs ?? []).includes(t.slug)),
-      )
+      const slugs = subject.tagSlugs ?? []
+      const seen = new Set<string>()
+      const tagCards: Flashcard[] = []
+      for (const s of slugs) {
+        for (const c of cardsByTagSlug.get(s) ?? []) {
+          if (!seen.has(c.id)) {
+            seen.add(c.id)
+            tagCards.push(c)
+          }
+        }
+      }
       if (tagCards.length === 0) continue
       items.push(
         <FlashcardBlock
@@ -209,7 +241,7 @@ function FlashcardBlocksCarousel({
     }
   } else {
     for (const tag of tags) {
-      const tagCards = flashcards.filter((c) => c.tags.some((t) => t.slug === tag.slug))
+      const tagCards = cardsByTagSlug.get(tag.slug) ?? []
       if (tagCards.length === 0) continue
       items.push(
         <FlashcardBlock

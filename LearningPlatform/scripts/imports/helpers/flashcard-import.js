@@ -61,7 +61,9 @@ async function upsertFlashcardDeck(prisma, spec, { dryRun }) {
   })
 
   if (dryRun) {
-    return { id: existing?.id ?? 'dry-run-deck-id', slug, created: !existing }
+    // Per-slug placeholder so parallel dry-run decks do not share one id (dedupe keys stay distinct)
+    const placeholderId = existing?.id ?? `dry-run-deck:${slug}`
+    return { id: placeholderId, slug, created: !existing }
   }
 
   if (!existing) {

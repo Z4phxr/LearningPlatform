@@ -148,7 +148,11 @@ describe('GET /api/flashcards', () => {
 // ─── POST /api/flashcards ─────────────────────────────────────────────────────
 
 describe('POST /api/flashcards', () => {
-  beforeEach(() => { vi.clearAllMocks() })
+  beforeEach(() => {
+    vi.clearAllMocks()
+    vi.mocked(mockPrisma.flashcardDeck.findUnique).mockResolvedValue({ id: 'deck-1' } as any)
+    vi.mocked(mockPrisma.tag.findMany).mockResolvedValue([] as any)
+  })
 
   it('returns 401 for unauthenticated callers', async () => {
     noSession()
@@ -216,6 +220,7 @@ describe('POST /api/flashcards', () => {
 
   it('connects tags when tagIds are provided', async () => {
     adminSession()
+    vi.mocked(mockPrisma.tag.findMany).mockResolvedValue([{ id: 'tag-1' }, { id: 'tag-2' }] as any)
     vi.mocked(mockPrisma.flashcard.create).mockResolvedValue(MOCK_FLASHCARD as any)
 
     const req = makeRequest('POST', 'http://localhost/api/flashcards', {
@@ -270,7 +275,10 @@ describe('GET /api/flashcards/[id]', () => {
 // ─── PUT /api/flashcards/[id] ─────────────────────────────────────────────────
 
 describe('PUT /api/flashcards/[id]', () => {
-  beforeEach(() => { vi.clearAllMocks() })
+  beforeEach(() => {
+    vi.clearAllMocks()
+    vi.mocked(mockPrisma.flashcardDeck.findUnique).mockResolvedValue({ id: 'deck-1' } as any)
+  })
 
   it('returns 401 when unauthenticated', async () => {
     noSession()
@@ -307,6 +315,11 @@ describe('PUT /api/flashcards/[id]', () => {
 
   it('replaces tag connections when tagIds are provided', async () => {
     adminSession()
+    vi.mocked(mockPrisma.flashcard.findUnique).mockResolvedValue({
+      deckId: 'deck-1',
+      tags: [{ id: 'prev' }],
+    } as any)
+    vi.mocked(mockPrisma.tag.findMany).mockResolvedValue([{ id: 't1' }] as any)
     vi.mocked(mockPrisma.flashcard.update).mockResolvedValue(MOCK_FLASHCARD as any)
 
     await idPut(

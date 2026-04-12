@@ -110,14 +110,22 @@ export function serializeLessonTheoryForLlm(input: {
   return parts.join('\n\n---\n\n')
 }
 
+const TRUNCATION_MARKER = '\n\n[… content truncated for length …]'
+
 export function truncateTheoryText(
   text: string,
   maxChars: number,
 ): { text: string; truncated: boolean } {
   if (text.length <= maxChars) return { text, truncated: false }
-  const cut = text.slice(0, maxChars)
+  if (maxChars <= TRUNCATION_MARKER.length) {
+    return {
+      text: TRUNCATION_MARKER.slice(0, Math.max(0, maxChars)),
+      truncated: true,
+    }
+  }
+  const cut = text.slice(0, maxChars - TRUNCATION_MARKER.length)
   return {
-    text: `${cut}\n\n[… content truncated for length …]`,
+    text: `${cut}${TRUNCATION_MARKER}`,
     truncated: true,
   }
 }
