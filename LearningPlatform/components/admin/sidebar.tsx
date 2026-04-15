@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { BookOpen, BrainCircuit, GraduationCap, Image, Settings, LayoutDashboard, ChevronLeft, ChevronRight, ClipboardList, Tag, ScrollText, Users } from 'lucide-react'
+import { BookOpen, BrainCircuit, GraduationCap, Image, Settings, LayoutDashboard, ChevronLeft, ChevronRight, ClipboardList, Tag, ScrollText, Users, Sparkles } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useEffect, useState } from 'react'
 
@@ -41,6 +41,11 @@ const navItems = [
     title: 'Media',
     href: '/admin/media',
     icon: Image,
+  },
+  {
+    title: 'AI Agent',
+    href: '/admin/ai-agent',
+    icon: Sparkles,
   },
   {
     title: 'Logs',
