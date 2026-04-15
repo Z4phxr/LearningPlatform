@@ -31,6 +31,10 @@ CREATE TABLE "task_attempt_tags" (
     CONSTRAINT "task_attempt_tags_pkey" PRIMARY KEY ("id")
 );
 
+-- Backfill: single INSERT…SELECT over full task_progress / task_progress_tags.
+-- For very large tables in production, consider running equivalent batched inserts
+-- in a maintenance window or as a follow-up job instead of this migration step.
+
 -- Backfill one legacy attempt per current TaskProgress snapshot.
 INSERT INTO "task_attempts" (
   "id",

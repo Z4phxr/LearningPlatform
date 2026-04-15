@@ -46,21 +46,30 @@ npm run test:e2e:ui       # Playwright UI mode
 
 - Latest baseline (Apr 15, 2026, `npm run test:coverage`):
   - Test files: `30 passed`, `2 skipped`
-  - Tests: `407 passed`, `12 skipped`
-  - Statements: `75%`
-  - Branches: `58.9%`
+  - Tests: `413 passed`, `12 skipped`
+  - Statements: `75.14%`
+  - Branches: `58.88%`
   - Functions: `80%`
-  - Lines: `76.74%`
+  - Lines: `76.9%`
+- **Task attempt event log** (append-only `task_attempts` / recommendations / practice):
+  - `test/unit/analytics.test.ts` — `getUserTagStats` / `getUserWeakTags` from `TaskAttempt` + `TaskAttemptTag`
+  - `test/actions/progress.test.ts` — `submitTaskAnswer` writes attempts, tag joins, best-effort failure path, cache invalidation, no-tag tasks
+  - `test/api/recommend-modes.test.ts` — weak (`groupBy` per task), review (latest-attempt semantics + ordering), mixed
+  - `test/api/practice-session.test.ts` — solved tasks via `groupBy` on correct attempts
+  - `test/integration/progress.integration.test.ts` — two submits ⇒ two `taskAttempt.create` calls
 - Strong coverage areas:
   - `components/admin`: `93.68%` statements
   - `app/api/create-course`: `92%` statements
   - `app/api/subjects`: `100%` statements and lines
+  - `lib/analytics.ts`: `100%` statements (tag stats from attempt log)
+  - `app/api/recommend/tasks/route.ts`: ~`94%` statements
 - Lower coverage areas (largest gaps):
   - `lib/prisma.ts`: `12.5%` statements
   - `lib/lexical.ts`: `20%` statements
   - `lib/lesson-theory-for-llm.ts`: `42.68%` statements
   - `lib/lexical-to-markdown.ts`: `0%` statements
-  - `app/actions/progress.ts` and `app/actions/user-stats.ts`: `0%` statements
+  - `app/actions/progress.ts`: `0%` statements (barrel re-export only; implementation is in `submit-task.ts` and co-located modules)
+  - `app/actions/user-stats.ts`: `0%` statements
 - Coverage is produced by Vitest v8 reporters (`text`, `json`, `html`) and written to `coverage/`.
 - Current Vitest config excludes `test/`, `prisma/`, `.next/`, `node_modules/`, and `**/*.config.*` from coverage.
 - No explicit coverage threshold gate is configured in Vitest yet.

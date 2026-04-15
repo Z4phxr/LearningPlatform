@@ -58,7 +58,7 @@ export function invalidateUserTagStatsCache(userId: string): void {
  * Aggregated statistics for a single tag as experienced by one user.
  */
 export interface TagStat {
-  /** The tag name from the Tag record linked via TaskProgressTag */
+  /** The tag name from the Tag record linked via TaskAttemptTag */
   tag:           string
   /** Total number of task submissions that included this tag */
   attempts:      number
@@ -90,7 +90,7 @@ export interface WeakTag {
 // ─── Core analytics ───────────────────────────────────────────────────────────
 
 /**
- * Compute per-tag statistics for a user based on their full TaskProgress history.
+ * Compute per-tag statistics for a user from the TaskAttempt event log.
  *
  * Algorithm:
  *  1. Fetch all TaskAttempt rows for the user via the taskAttemptTags relation.

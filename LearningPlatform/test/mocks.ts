@@ -210,6 +210,7 @@ export const createMockPrisma = (overrides = {}) => {
       findUnique: vi.fn(() => createMockResult(null)),
       findFirst: vi.fn(() => createMockResult(null)),
       findMany: vi.fn(() => createMockResult([])),
+      groupBy: vi.fn(() => createMockResult([])),
       update: vi.fn((args) => createMockResult({ id: args.where.id, ...args.data })),
       delete: vi.fn((args) => createMockResult({ id: args.where.id })),
       upsert: vi.fn((args) => createMockResult({

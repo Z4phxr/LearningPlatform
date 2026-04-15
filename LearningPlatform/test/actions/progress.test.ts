@@ -16,6 +16,14 @@ vi.mock('@/lib/prisma', () => ({
   prisma: mockPrisma,
 }))
 
+const { mockInvalidateUserTagStatsCache } = vi.hoisted(() => ({
+  mockInvalidateUserTagStatsCache: vi.fn(),
+}))
+
+vi.mock('@/lib/analytics', () => ({
+  invalidateUserTagStatsCache: mockInvalidateUserTagStatsCache,
+}))
+
 // Mock Next.js cache
 vi.mock('next/cache', () => ({
   revalidatePath: vi.fn(),
@@ -44,6 +52,7 @@ const { getPayload } = await import('payload')
 describe('Server Actions: progress.ts', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockInvalidateUserTagStatsCache.mockClear()
     vi.mocked(getPayload).mockResolvedValue(mockPayload as any)
   })
 
@@ -328,6 +337,162 @@ describe('Server Actions: progress.ts', () => {
 
       const result = await submitTaskAnswer('task-3', 'lesson-3', 'Answer', 'test-course')
       expect(result.isCorrect).toBe(false)
+    })
+
+    it('writes TaskAttempt and TaskAttemptTag rows on successful submit', async () => {
+      vi.mocked(auth).mockResolvedValue(mockSession as any)
+
+      mockPayload.findByID
+        .mockResolvedValueOnce({
+          id: 'task-1',
+          isPublished: true,
+          type: 'MULTIPLE_CHOICE',
+          question: 'Test?',
+          correctAnswer: 'A',
+          points: 10,
+          tags: [{ tag: 'arrays' }],
+        })
+        .mockResolvedValueOnce({
+          id: 'lesson-1',
+          isPublished: true,
+          title: 'Test Lesson',
+          course: 'course-1',
+        })
+
+      mockPrisma.tag.findMany.mockResolvedValueOnce([{ id: 'tag-id-1' }] as any)
+      mockPrisma.lessonProgress.upsert.mockResolvedValue({ id: 'progress-1' } as any)
+      mockPrisma.taskProgress.upsert.mockResolvedValue({
+        id: 'task-progress-1',
+        userId: 'mock-user-id',
+        taskId: 'task-1',
+        lessonProgressId: 'progress-1',
+      } as any)
+      mockPrisma.taskProgress.findMany.mockResolvedValue([] as any)
+      mockPrisma.courseProgress.upsert.mockResolvedValue({ id: 'course-1' } as any)
+      mockPrisma.taskAttempt.create.mockResolvedValue({ id: 'attempt-1' } as any)
+
+      await submitTaskAnswer('task-1', 'lesson-1', 'A', 'test-course')
+
+      expect(mockPrisma.taskAttempt.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            userId: 'mock-user-id',
+            taskId: 'task-1',
+            lessonProgressId: 'progress-1',
+            taskProgressId: 'task-progress-1',
+            submittedAnswer: 'A',
+            earnedPoints: 10,
+            maxPoints: 10,
+            isCorrect: true,
+          }),
+          select: { id: true },
+        }),
+      )
+      expect(mockPrisma.taskAttemptTag.createMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: [{ taskAttemptId: 'attempt-1', tagId: 'tag-id-1' }],
+          skipDuplicates: true,
+        }),
+      )
+    })
+
+    it('records TaskAttempt without TaskAttemptTag when the task has no tags', async () => {
+      vi.mocked(auth).mockResolvedValue(mockSession as any)
+
+      mockPayload.findByID
+        .mockResolvedValueOnce({
+          id: 'task-1',
+          isPublished: true,
+          type: 'MULTIPLE_CHOICE',
+          question: 'Test?',
+          correctAnswer: 'A',
+          points: 10,
+          tags: [],
+        })
+        .mockResolvedValueOnce({
+          id: 'lesson-1',
+          isPublished: true,
+          title: 'Test Lesson',
+          course: 'course-1',
+        })
+
+      mockPrisma.lessonProgress.upsert.mockResolvedValue({ id: 'progress-1' } as any)
+      mockPrisma.taskProgress.upsert.mockResolvedValue({ id: 'task-progress-1' } as any)
+      mockPrisma.taskProgress.findMany.mockResolvedValue([] as any)
+      mockPrisma.courseProgress.upsert.mockResolvedValue({ id: 'course-1' } as any)
+      mockPrisma.taskAttempt.create.mockResolvedValue({ id: 'attempt-no-tags' } as any)
+
+      await submitTaskAnswer('task-1', 'lesson-1', 'A', 'test-course')
+
+      expect(mockPrisma.taskAttempt.create).toHaveBeenCalled()
+      expect(mockPrisma.taskAttemptTag.createMany).not.toHaveBeenCalled()
+    })
+
+    it('invalidates the per-user tag stats cache after submit', async () => {
+      vi.mocked(auth).mockResolvedValue(mockSession as any)
+
+      mockPayload.findByID
+        .mockResolvedValueOnce({
+          id: 'task-1',
+          isPublished: true,
+          type: 'MULTIPLE_CHOICE',
+          question: 'Test?',
+          correctAnswer: 'A',
+          points: 10,
+          tags: [],
+        })
+        .mockResolvedValueOnce({
+          id: 'lesson-1',
+          isPublished: true,
+          course: 'course-1',
+        })
+
+      mockPrisma.lessonProgress.upsert.mockResolvedValue({ id: 'progress-1' } as any)
+      mockPrisma.taskProgress.upsert.mockResolvedValue({ id: 'task-progress-1' } as any)
+      mockPrisma.taskProgress.findMany.mockResolvedValue([] as any)
+      mockPrisma.courseProgress.upsert.mockResolvedValue({ id: 'course-1' } as any)
+      mockPrisma.taskAttempt.create.mockResolvedValue({ id: 'attempt-1' } as any)
+
+      await submitTaskAnswer('task-1', 'lesson-1', 'A', 'test-course')
+
+      expect(mockInvalidateUserTagStatsCache).toHaveBeenCalledWith('mock-user-id')
+    })
+
+    it('does not fail the submit when TaskAttempt logging errors', async () => {
+      vi.mocked(auth).mockResolvedValue(mockSession as any)
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+
+      mockPayload.findByID
+        .mockResolvedValueOnce({
+          id: 'task-1',
+          isPublished: true,
+          type: 'MULTIPLE_CHOICE',
+          question: 'Test?',
+          correctAnswer: 'A',
+          points: 10,
+          tags: [],
+        })
+        .mockResolvedValueOnce({
+          id: 'lesson-1',
+          isPublished: true,
+          course: 'course-1',
+        })
+
+      mockPrisma.lessonProgress.upsert.mockResolvedValue({ id: 'progress-1' } as any)
+      mockPrisma.taskProgress.upsert.mockResolvedValue({ id: 'task-progress-1' } as any)
+      mockPrisma.taskProgress.findMany.mockResolvedValue([] as any)
+      mockPrisma.courseProgress.upsert.mockResolvedValue({ id: 'course-1' } as any)
+      mockPrisma.taskAttempt.create.mockRejectedValueOnce(new Error('attempt log down'))
+
+      const result = await submitTaskAnswer('task-1', 'lesson-1', 'A', 'test-course')
+
+      expect(result.isCorrect).toBe(true)
+      expect(warnSpy).toHaveBeenCalled()
+      const [msg, err] = warnSpy.mock.calls[0]
+      expect(String(msg)).toContain('TaskAttempt logging failed')
+      expect(err).toBeInstanceOf(Error)
+
+      warnSpy.mockRestore()
     })
   })
 
