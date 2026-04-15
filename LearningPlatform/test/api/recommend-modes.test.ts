@@ -75,7 +75,8 @@ describe('GET /api/recommend/tasks', () => {
   beforeEach(() => {
     resetAllMocks(mockPrisma)
     vi.clearAllMocks()
-    mockPrisma.taskProgress.findMany.mockResolvedValue([])
+    mockPrisma.taskAttempt.findMany.mockResolvedValue([])
+    mockPrisma.taskAttempt.groupBy.mockResolvedValue([])
     mockedWeakTags.mockResolvedValue([])
   })
 
@@ -112,7 +113,7 @@ describe('GET /api/recommend/tasks', () => {
       userSession()
       mockedGetPayload.mockResolvedValue(payloadWith([makeTask('t1', ['algebra'])]) as any)
       mockedWeakTags.mockResolvedValue([{ tag: 'algebra', weakness: 0.9 }])
-      mockPrisma.taskProgress.findMany.mockResolvedValue([])
+      mockPrisma.taskAttempt.findMany.mockResolvedValue([])
 
       const res  = await GET(get('http://localhost/api/recommend/tasks?mode=weak'))
       const body = await res.json()
@@ -139,9 +140,9 @@ describe('GET /api/recommend/tasks', () => {
         makeTask('old-task',   ['algebra']),
       ]) as any)
       mockedWeakTags.mockResolvedValue([{ tag: 'algebra', weakness: 0.8 }])
-      // old-task was attempted long ago
-      mockPrisma.taskProgress.findMany.mockResolvedValue([
-        { taskId: 'old-task', attemptedAt: new Date(Date.now() - 30 * DAY) },
+      // old-task was attempted long ago (one row per task from groupBy)
+      mockPrisma.taskAttempt.groupBy.mockResolvedValue([
+        { taskId: 'old-task', _max: { attemptedAt: new Date(Date.now() - 30 * DAY) } },
       ])
 
       const res  = await GET(get('http://localhost/api/recommend/tasks?mode=weak&limit=2'))
@@ -169,7 +170,7 @@ describe('GET /api/recommend/tasks', () => {
       const recentDate = new Date(Date.now() - 1 * DAY)
       const olderDate  = new Date(Date.now() - 5 * DAY)
 
-      mockPrisma.taskProgress.findMany.mockResolvedValue([
+      mockPrisma.taskAttempt.findMany.mockResolvedValue([
         { taskId: 't1', isCorrect: false, attemptedAt: recentDate },
         { taskId: 't2', isCorrect: false, attemptedAt: olderDate  },
         { taskId: 't3', isCorrect: true,  attemptedAt: recentDate },
@@ -188,13 +189,31 @@ describe('GET /api/recommend/tasks', () => {
       expect(ids).not.toContain('t3')
     })
 
-    it('excludes tasks that were since answered correctly', async () => {
+    it('orders review tasks by most recent incorrect attempt first', async () => {
+      userSession()
+      mockedGetPayload.mockResolvedValue(payloadWith([
+        makeTask('t1', ['algebra']),
+        makeTask('t2', ['geometry']),
+      ]) as any)
+
+      mockPrisma.taskAttempt.findMany.mockResolvedValue([
+        { taskId: 't1', isCorrect: false, attemptedAt: new Date(Date.now() - 1 * DAY) },
+        { taskId: 't2', isCorrect: false, attemptedAt: new Date(Date.now() - 10 * DAY) },
+      ])
+
+      const res  = await GET(get('http://localhost/api/recommend/tasks?mode=review&limit=5'))
+      const body = await res.json()
+
+      expect(body.tasks.map((t: any) => t.id)).toEqual(['t1', 't2'])
+    })
+
+    it('excludes tasks whose latest attempt is correct', async () => {
       userSession()
       mockedGetPayload.mockResolvedValue(payloadWith([
         makeTask('t1', ['bio']),
       ]) as any)
-      // t1 was wrong then later correct
-      mockPrisma.taskProgress.findMany.mockResolvedValue([
+      // t1 was wrong then later correct — latest row is correct
+      mockPrisma.taskAttempt.findMany.mockResolvedValue([
         { taskId: 't1', isCorrect: true,  attemptedAt: new Date(Date.now() - 1 * DAY) },
         { taskId: 't1', isCorrect: false, attemptedAt: new Date(Date.now() - 5 * DAY) },
       ])
@@ -203,6 +222,22 @@ describe('GET /api/recommend/tasks', () => {
       const body = await res.json()
 
       expect(body.tasks.map((t: any) => t.id)).not.toContain('t1')
+    })
+
+    it('includes tasks when latest attempt is wrong after an earlier correct attempt', async () => {
+      userSession()
+      mockedGetPayload.mockResolvedValue(payloadWith([
+        makeTask('t1', ['bio']),
+      ]) as any)
+      mockPrisma.taskAttempt.findMany.mockResolvedValue([
+        { taskId: 't1', isCorrect: false, attemptedAt: new Date(Date.now() - 1 * DAY) },
+        { taskId: 't1', isCorrect: true,  attemptedAt: new Date(Date.now() - 5 * DAY) },
+      ])
+
+      const res  = await GET(get('http://localhost/api/recommend/tasks?mode=review&limit=5'))
+      const body = await res.json()
+
+      expect(body.tasks.map((t: any) => t.id)).toContain('t1')
     })
   })
 
@@ -217,7 +252,7 @@ describe('GET /api/recommend/tasks', () => {
         makeTask('random-t', ['history']),
       ]) as any)
       mockedWeakTags.mockResolvedValue([{ tag: 'algebra', weakness: 0.9 }])
-      mockPrisma.taskProgress.findMany.mockResolvedValue([
+      mockPrisma.taskAttempt.findMany.mockResolvedValue([
         // review-t was answered wrong
         { taskId: 'review-t', isCorrect: false, attemptedAt: new Date(Date.now() - 2 * DAY) },
       ])
@@ -250,7 +285,7 @@ describe('GET /api/recommend/tasks', () => {
     const tasks = Array.from({ length: 50 }, (_, i) => makeTask(`t${i}`, ['math']))
     mockedGetPayload.mockResolvedValue(payloadWith(tasks) as any)
     mockedWeakTags.mockResolvedValue([{ tag: 'math', weakness: 0.8 }])
-    mockPrisma.taskProgress.findMany.mockResolvedValue([])
+    mockPrisma.taskAttempt.findMany.mockResolvedValue([])
 
     const res  = await GET(get('http://localhost/api/recommend/tasks?limit=999'))
     const body = await res.json()

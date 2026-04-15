@@ -22,11 +22,11 @@ import { extractText } from '@/lib/lexical'
  *     2. Score published tasks by sum-of-weakness for matching tags.
  *     3. Apply novelty (+0.3) and staleness (+0.2) bonuses.
  *
- *   review — Return tasks the user previously got wrong, most recent first.
- *     1. Pull TaskProgress rows with isCorrect = false.
- *     2. De-duplicate by taskId keeping the latest attempt.
- *     3. Exclude tasks since solved correctly.
- *     4. Sort by attemptedAt descending.
+ *   review — Return tasks whose latest attempt is incorrect, most recent first.
+ *     1. Pull TaskAttempts ordered by attemptedAt descending.
+ *     2. Take the latest attempt per taskId.
+ *     3. Keep tasks where that latest attempt is incorrect (a prior correct attempt does not exclude).
+ *     4. Sort by that attempt's attemptedAt descending.
  *
  *   mixed  — Balanced blend: 40% weak, 30% review, 30% random.
  *     Merges the three pools and interleaves them.
@@ -84,12 +84,17 @@ async function weakMode(
   const weakTagSet = new Set(topWeak.map((t) => normalise(t.tag)))
   const weakTagMap = new Map(topWeak.map((t) => [normalise(t.tag), t.weakness]))
 
-  const attempts = await prisma.taskProgress.findMany({
-    where:  { userId },
-    select: { taskId: true, attemptedAt: true },
+  const perTask = await prisma.taskAttempt.groupBy({
+    by: ['taskId'],
+    where: { userId },
+    _max: { attemptedAt: true },
   })
-  const attemptedIds    = new Set(attempts.map((a) => a.taskId))
-  const lastAttemptedAt = new Map(attempts.map((a) => [a.taskId, a.attemptedAt]))
+  const attemptedIds    = new Set<string>(perTask.map((r) => r.taskId))
+  const lastAttemptedAt = new Map<string, Date>()
+  for (const row of perTask) {
+    const at = row._max.attemptedAt
+    if (at) lastAttemptedAt.set(row.taskId, at)
+  }
 
   const now = Date.now()
 
@@ -130,34 +135,33 @@ async function weakMode(
 }
 
 /**
- * REVIEW mode: return tasks previously answered incorrectly, most recent first.
- * Tasks the user has since answered correctly are excluded.
+ * REVIEW mode: tasks whose latest submission is incorrect, most recent first.
+ * A task answered correctly in the past but wrong on the latest try is included.
  */
 async function reviewMode(
   userId: string,
   allTasks: any[],
   limit: number,
 ): Promise<{ tasks: ScoredTask[]; explanation: string }> {
-  const allAttempts = await prisma.taskProgress.findMany({
+  const allAttempts = await prisma.taskAttempt.findMany({
     where:  { userId },
     select: { taskId: true, isCorrect: true, attemptedAt: true },
     orderBy: { attemptedAt: 'desc' },
   })
 
-  // Track which tasks were ever solved correctly
-  const everCorrect = new Set(
-    allAttempts.filter((a) => a.isCorrect === true).map((a) => a.taskId),
-  )
-
-  // Most-recent incorrect attempt per task (deduplicated)
-  const seen = new Set<string>()
-  const incorrect: { taskId: string; attemptedAt: Date }[] = []
+  const latestByTask = new Map<string, { isCorrect: boolean; attemptedAt: Date }>()
   for (const a of allAttempts) {
-    if (a.isCorrect === false && !everCorrect.has(a.taskId) && !seen.has(a.taskId) && a.attemptedAt !== null) {
-      incorrect.push({ taskId: a.taskId, attemptedAt: a.attemptedAt! })
-      seen.add(a.taskId)
-    }
+    if (a.attemptedAt == null || latestByTask.has(a.taskId)) continue
+    latestByTask.set(a.taskId, {
+      isCorrect: a.isCorrect === true,
+      attemptedAt: a.attemptedAt,
+    })
   }
+
+  const incorrect = [...latestByTask.entries()]
+    .filter(([, meta]) => !meta.isCorrect)
+    .map(([taskId, meta]) => ({ taskId, attemptedAt: meta.attemptedAt }))
+    .sort((x, y) => y.attemptedAt.getTime() - x.attemptedAt.getTime())
 
   // Build a lookup map for task data
   const taskById = new Map(allTasks.map((t) => [String(t.id), t]))
@@ -179,7 +183,7 @@ async function reviewMode(
 
   return {
     tasks,
-    explanation: 'Tasks you previously answered incorrectly, sorted by most recent attempt.',
+    explanation: 'Tasks where your latest answer was incorrect, sorted by most recent attempt.',
   }
 }
 

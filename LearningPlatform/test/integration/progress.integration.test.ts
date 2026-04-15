@@ -94,6 +94,9 @@ describe('Integration: course progress flow', () => {
     // Submit second task (correct answer 'B')
     await submitTaskAnswer('task-2', 'lesson-2', 'B', 'course-slug')
 
+    // Append-only attempt log: one TaskAttempt row per submission
+    expect(mockPrisma.taskAttempt.create).toHaveBeenCalledTimes(2)
+
     // After two submissions, recalc should have upserted courseProgress at least once
     expect(mockPrisma.courseProgress.upsert).toHaveBeenCalled()
 
