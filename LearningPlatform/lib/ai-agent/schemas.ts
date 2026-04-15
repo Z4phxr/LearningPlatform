@@ -64,7 +64,14 @@ export const draftCourseSchema = z.object({
 export const draftRequestSchema = z.object({
   discovery: discoverySchema,
   userMessage: z.string().min(1),
-  currentDraft: z.unknown().optional(),
+  currentDraft: z
+    .unknown()
+    .optional()
+    .transform((val): z.infer<typeof draftCourseSchema> | undefined => {
+      if (val === undefined) return undefined
+      const parsed = draftCourseSchema.safeParse(val)
+      return parsed.success ? parsed.data : undefined
+    }),
 })
 
 export const theoryBlockSchema = z.discriminatedUnion('blockType', [
@@ -88,16 +95,16 @@ export const theoryBlockSchema = z.discriminatedUnion('blockType', [
   z.object({
     blockType: z.literal('image'),
     image: z.string(),
-    caption: z.string().min(10),
+    caption: z.string().optional(),
     align: z.enum(['left', 'center', 'right']).optional(),
-    width: z.enum(['sm', 'md', 'lg']).optional(),
+    width: z.enum(['sm', 'md', 'lg', 'full']).optional(),
   }),
   z.object({
     blockType: z.literal('video'),
     videoUrl: z.string().url(),
-    title: z.string().min(2),
+    title: z.string().min(2).optional(),
     caption: z.string().optional(),
-    aspectRatio: z.enum(['16:9', '4:3']).optional(),
+    aspectRatio: z.enum(['16:9', '4:3']).default('16:9'),
   }),
   z.object({
     blockType: z.literal('math'),

@@ -64,7 +64,7 @@ async function loadPayloadConfig() {
     return await unwrapConfig(mod)
   } catch (err) {
     throw new Error(
-      'Could not load Payload config. Install devDependency `tsx` and use tsconfig.scripts.json (see scripts/imports/README.md). ' +
+      'Could not load Payload config. Install devDependency `tsx` and use tsconfig.scripts.json (see documentation/CONTENT_IMPORTS.md). ' +
         `Last error: ${err?.message || err}`,
     )
   }

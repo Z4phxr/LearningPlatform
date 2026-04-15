@@ -1,5 +1,7 @@
 import { randomUUID } from 'crypto'
 
+/** In-memory run state only: lost on redeploy, not shared across server instances. Suitable for single-node / local dev; use a shared store for multi-instance production. */
+
 export type RunStatus = 'queued' | 'running' | 'completed' | 'failed'
 export type TimelineStatus = 'pending' | 'running' | 'done' | 'error'
 

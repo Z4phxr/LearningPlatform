@@ -212,15 +212,16 @@ function buildFallbackModule(args: {
 }
 
 async function ensureSubject(payload: any, draft: DraftCourse): Promise<string> {
+  const slug = toSlug(draft.subject.slug || draft.subject.name)
   const found = await payload.find({
     collection: 'subjects',
-    where: { slug: { equals: draft.subject.slug } },
+    where: { slug: { equals: slug } },
     limit: 1,
   })
   if (found.docs.length > 0) return String(found.docs[0].id)
   const created = await payload.create({
     collection: 'subjects',
-    data: { name: draft.subject.name, slug: draft.subject.slug },
+    data: { name: draft.subject.name, slug },
   })
   return String(created.id)
 }
@@ -325,7 +326,7 @@ export async function generateDraft(input: unknown): Promise<DraftCourse> {
     user: buildDraftUserPrompt({
       discovery: parsed.discovery,
       userMessage: parsed.userMessage,
-      currentDraft: parsed.currentDraft as DraftCourse | undefined,
+      currentDraft: parsed.currentDraft,
     }),
     validate: (v) => draftCourseSchema.parse(v),
   })
@@ -339,6 +340,7 @@ export async function generateDraft(input: unknown): Promise<DraftCourse> {
 }
 
 export async function runAcceptPipeline(runId: string, input: unknown, actor?: { id?: string; email?: string }) {
+  let createdCourseId: string | undefined
   try {
     setRunStatus(runId, 'running')
     const parsed = acceptRequestSchema.parse(input)
@@ -354,6 +356,7 @@ export async function runAcceptPipeline(runId: string, input: unknown, actor?: {
 
     const subjectId = await ensureSubject(payload, parsed.draft)
     const course = await createCourse(payload, parsed.draft, subjectId)
+    createdCourseId = course.id
     if (prepId) updateTimeline(runId, prepId, { status: 'done', detail: `Course ${course.title} created` })
     setProgress(runId, 15)
 
@@ -450,7 +453,7 @@ export async function runAcceptPipeline(runId: string, input: unknown, actor?: {
           const choices = task.type === 'MULTIPLE_CHOICE' ? task.choices.map((text) => ({ text })) : undefined
           const correctAnswer =
             task.type === 'OPEN_ENDED'
-              ? ''
+              ? undefined
               : 'correctAnswer' in task
                 ? task.correctAnswer
                 : undefined
@@ -461,7 +464,7 @@ export async function runAcceptPipeline(runId: string, input: unknown, actor?: {
               type: task.type,
               prompt: textToLexical(task.prompt),
               choices,
-              correctAnswer,
+              ...(correctAnswer !== undefined ? { correctAnswer } : {}),
               solution: textToLexical(task.solution),
               points: task.points,
               order: task.order,
@@ -518,6 +521,7 @@ export async function runAcceptPipeline(runId: string, input: unknown, actor?: {
       tasksCreated,
       flashcardsCreated,
     })
+    createdCourseId = undefined
 
     if (actor?.id || actor?.email) {
       logActivity({
@@ -536,6 +540,14 @@ export async function runAcceptPipeline(runId: string, input: unknown, actor?: {
       })
     }
   } catch (err) {
+    if (createdCourseId) {
+      try {
+        const payloadForCleanup = await getPayload({ config })
+        await payloadForCleanup.delete({ collection: 'courses', id: createdCourseId })
+      } catch (cleanupErr) {
+        console.error('[ai-agent] failed to delete partial course after pipeline error', cleanupErr)
+      }
+    }
     const message = err instanceof Error ? err.message : 'Unknown generation failure'
     addTimeline(runId, {
       id: 'fatal',
