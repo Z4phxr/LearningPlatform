@@ -27,12 +27,20 @@ export async function getAllCourseProgress() {
     throw new Error('Unauthorized')
   }
 
-  const allProgress = await prisma.courseProgress.findMany({
+  const rows = await prisma.courseProgress.findMany({
     where: { userId: session.user.id },
     orderBy: { lastActivityAt: 'desc' },
   })
 
-  return allProgress
+  // Recompute aggregates so stored totals stay in sync (e.g. after fixing Payload find limits).
+  await Promise.all(
+    rows.map((row) => recalculateCourseProgress(session.user.id, row.courseId)),
+  )
+
+  return prisma.courseProgress.findMany({
+    where: { userId: session.user.id },
+    orderBy: { lastActivityAt: 'desc' },
+  })
 }
 
 /**
@@ -42,13 +50,14 @@ export async function getAllCourseProgress() {
 export async function recalculateCourseProgress(userId: string, courseId: string) {
   const payload = await getPayload({ config })
 
-  // Get all published lessons for this course
+  // Get all published lessons for this course (Payload defaults limit to 10)
   const { docs: allLessons } = await payload.find({
     collection: 'lessons',
     where: {
       course: { equals: courseId },
       isPublished: { equals: true },
     },
+    limit: 10_000,
   })
 
   const totalLessons = allLessons.length
@@ -72,6 +81,7 @@ export async function recalculateCourseProgress(userId: string, courseId: string
       lesson: { in: lessonIds },
       isPublished: { equals: true },
     },
+    limit: 10_000,
   })
 
   const totalPoints = allTasks.reduce((sum, task) => sum + (task.points || 0), 0)
